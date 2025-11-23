@@ -11,9 +11,9 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Select;
-use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\TextInput; // TextInput ကိုပဲ သုံးပါမယ်
 use Filament\Forms\Components\Toggle;
-use Filament\Forms\Get; // <--- ဒီကောင်လေး လိုနေတာပါ
+use Filament\Forms\Get; 
 
 class EpisodeResource extends Resource
 {
@@ -28,7 +28,6 @@ class EpisodeResource extends Resource
             ->schema([
                 Section::make('Episode Info')
                     ->schema([
-                        // Season ရွေးခိုင်းမယ်
                         Select::make('season_id')
                             ->relationship('season', 'title')
                             ->searchable()
@@ -43,10 +42,14 @@ class EpisodeResource extends Resource
                             ->numeric()
                             ->required(),
                             
+                        // TextInput သုံးထားပြီး ->url() ကို ဖြုတ်ထားပါတယ်
+                        // ဒါမှ Iframe code တွေပါ လက်ခံမှာပါ
                         TextInput::make('video_url')
-                            ->url()
-                            ->required()
-                            ->columnSpanFull(),
+                            ->label('Video Source')
+                            ->helperText('Enter Direct URL or Iframe Embed Code')
+                            ->columnSpanFull()
+                            ->required(),
+
                     ])->columns(2),
 
                 Section::make('Gaming & Premium Logic')
@@ -55,13 +58,12 @@ class EpisodeResource extends Resource
                             ->label('Premium Episode?')
                             ->onColor('success')
                             ->offColor('danger')
-                            ->live(), // Toggle နှိပ်တာနဲ့ အောက်က coin_price ပေါ်/ပျောက် ဖြစ်ဖို့ live() လိုပါတယ်
+                            ->live(), 
 
                         TextInput::make('coin_price')
                             ->numeric()
                             ->default(0)
                             ->prefix('Coins')
-                            // ဒီနေရာမှာ Error တက်နေတာပါ (Get class မသိလို့)
                             ->hidden(fn (Get $get) => !$get('is_premium')), 
 
                         TextInput::make('xp_reward')

@@ -68,7 +68,10 @@ class User extends Authenticatable
 
 public function watchlist()
 {
-    return $this->belongsToMany(Anime::class, 'watchlists')->withTimestamps()->latest();
+    return $this->belongsToMany(Anime::class, 'watchlists')
+                ->withTimestamps()
+                // created_at ရှေ့မှာ Table နာမည် 'watchlists.' ခံပေးရပါမယ်
+                ->orderBy('watchlists.created_at', 'desc'); // ✅ မှန်ကန်သော ကုဒ်
 }
 
 public function comments()

@@ -85,7 +85,7 @@
                             
                             <div class="aspect-[2/3] w-full overflow-hidden rounded-xl bg-slate-800 relative shadow-lg group-hover:shadow-purple-500/20 transition duration-300 border border-slate-800 group-hover:border-purple-500/50">
                                 
-                                <img src="{{ $anime->thumbnail_url ? asset('storage/' . $anime->thumbnail_url) : 'https://via.placeholder.com/300x450' }}" 
+                                <img src="{{ $anime->thumbnail_url ? $anime->thumbnail_url : 'https://via.placeholder.com/300x450' }}" 
                                      class="h-full w-full object-cover transition duration-500 group-hover:scale-110 group-hover:opacity-40">
                                 
                                 <div class="hidden md:flex absolute inset-0 flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition duration-300">

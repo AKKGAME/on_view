@@ -105,7 +105,7 @@
                                 <div x-data="{ expanded: false }" class="bg-slate-900/50 rounded-2xl border border-slate-800 hover:border-slate-700 transition overflow-hidden">
                                     
                                     <div @click="expanded = !expanded" class="flex items-center gap-3 md:gap-4 p-3 md:p-4 cursor-pointer hover:bg-slate-800/50 transition active:bg-slate-800">
-                                        <img src="{{ asset('storage/' . $anime->thumbnail_url) }}" class="w-12 h-16 md:w-16 md:h-24 object-cover rounded-lg shadow-lg bg-slate-800">
+                                        <img src="{{ $anime->thumbnail_url }}" class="w-12 h-16 md:w-16 md:h-24 object-cover rounded-lg shadow-lg bg-slate-800">
                                         <div class="flex-1 min-w-0">
                                             <h4 class="text-base md:text-lg font-bold text-white font-gaming truncate">{{ $anime->title }}</h4>
                                             <div class="flex items-center gap-3 mt-1"><span class="text-[10px] md:text-xs text-slate-400">{{ $anime->seasons->sum(fn($s) => $s->episodes->count()) }} Owned</span></div>
@@ -159,7 +159,7 @@
                             @foreach($watchlist as $anime)
                                 <a href="{{ route('anime.show', $anime->slug) }}" class="group relative block">
                                     <div class="aspect-[2/3] w-full overflow-hidden rounded-xl bg-slate-800 relative shadow-lg group-hover:shadow-pink-500/20 transition duration-300 border border-slate-800 group-hover:border-pink-500/50">
-                                        <img src="{{ asset('storage/' . $anime->thumbnail_url) }}" 
+                                        <img src="{{ $anime->thumbnail_url }}" 
                                             class="h-full w-full object-cover transition duration-500 group-hover:scale-110 opacity-90 group-hover:opacity-100">
                                         <div class="absolute top-1.5 right-1.5 md:top-2 md:right-2 bg-pink-600 text-white p-1 md:p-1.5 rounded-full shadow-lg">
                                             <svg class="w-2.5 h-2.5 md:w-3 md:h-3 fill-current" viewBox="0 0 24 24"><path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>

@@ -34,7 +34,7 @@
                 <div class="relative w-48 md:w-72 shrink-0 mx-auto md:mx-0 group perspective-1000">
                     <div class="absolute inset-0 bg-purple-600 rounded-2xl blur-2xl opacity-20 group-hover:opacity-40 transition duration-500"></div>
                     <div class="relative rounded-2xl overflow-hidden border border-white/10 shadow-2xl ring-1 ring-white/10 transform group-hover:scale-[1.02] group-hover:-rotate-1 transition duration-500 bg-[#1a1a1a]">
-                        <img src="{{ $anime->thumbnail_url ? \Illuminate\Support\Facades\Storage::url($anime->thumbnail_url) : 'https://via.placeholder.com/300x450' }}" 
+                        <img src="{{ $anime->thumbnail_url ? $anime->thumbnail_url : 'https://via.placeholder.com/300x450' }}" 
                              class="w-full h-auto object-cover">
                     </div>
                 </div>
@@ -110,41 +110,29 @@
     </div>
 
     {{-- 3. EPISODE LIST SECTION --}}
-    <div class="relative z-10 max-w-7xl mx-auto px-0 md:px-6 lg:px-8 mt-8"> <div class="border-t border-white/5 pt-8 md:pt-10">
+    <div class="relative z-10 max-w-7xl mx-auto px-0 md:px-6 lg:px-8 mt-8">
+        <div class="border-t border-white/5 pt-8 md:pt-10">
             
-            {{-- Header & Season Tabs Container --}}
-            <div class="flex flex-col gap-6 mb-8">
+            {{-- Header & Season Tabs --}}
+            <div class="flex flex-col gap-6 mb-6">
+                {{-- Title --}}
+                <div class="flex items-center gap-3 px-4 md:px-0">
+                    <div class="w-1 h-6 bg-purple-500 rounded-full shadow-[0_0_10px_rgba(168,85,247,0.8)]"></div>
+                    <h3 class="text-xl font-bold text-white tracking-tight">Episodes</h3>
+                </div>
                 
-                {{-- Title (With Decorative Line) --}}
-                <!-- <div class="flex items-center gap-3 px-4 md:px-0">
-                    <div class="w-1 h-8 bg-gradient-to-b from-purple-500 to-blue-500 rounded-full shadow-[0_0_10px_rgba(168,85,247,0.8)]"></div>
-                    <h3 class="text-2xl font-bold text-white tracking-tight">Episodes</h3>
-                </div> -->
-                
-                {{-- Mobile-Optimized Season Selector --}}
+                {{-- Season Selector --}}
                 <div class="relative w-full group">
-                    
-                    {{-- Fade Gradients (Mobile Only Hints) --}}
-                    <div class="absolute left-0 top-0 bottom-0 w-12 bg-gradient-to-r from-[#05050A] to-transparent z-10 pointer-events-none md:hidden"></div>
-                    <div class="absolute right-0 top-0 bottom-0 w-12 bg-gradient-to-l from-[#05050A] to-transparent z-10 pointer-events-none md:hidden"></div>
+                    <div class="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-[#05050A] to-transparent z-10 pointer-events-none md:hidden"></div>
+                    <div class="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-[#05050A] to-transparent z-10 pointer-events-none md:hidden"></div>
 
-                    {{-- Scrollable List --}}
-                    <div class="flex gap-3 overflow-x-auto p-4 md:px-4 scrollbar-hide snap-x snap-mandatory scroll-smooth">
+                    <div class="flex gap-3 overflow-x-auto px-4 md:px-0 pb-2 scrollbar-hide snap-x snap-mandatory scroll-smooth">
                         @foreach($anime->seasons as $season)
                             <button wire:click="selectSeason({{ $season->id }})"
-                                class="relative px-6 py-3 rounded-full text-sm font-bold whitespace-nowrap transition-all duration-300 shrink-0 snap-center border
+                                class="relative px-5 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all duration-300 shrink-0 snap-center border
                                 {{ $currentSeason->id === $season->id 
-                                    ? 'bg-white text-black border-white shadow-[0_0_20px_rgba(255,255,255,0.3)] scale-105 z-10' 
+                                    ? 'bg-white text-black border-white shadow-lg z-10' 
                                     : 'bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white border-white/10' }}">
-                                
-                                {{-- Active Indicator Dot --}}
-                                @if($currentSeason->id === $season->id)
-                                    <span class="absolute -top-1 -right-1 flex h-3 w-3">
-                                      <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
-                                      <span class="relative inline-flex rounded-full h-3 w-3 bg-purple-500"></span>
-                                    </span>
-                                @endif
-
                                 {{ $season->title }}
                             </button>
                         @endforeach
@@ -152,52 +140,73 @@
                 </div>
             </div>
 
-            {{-- Episode Grid --}}
-            <div class="px-4 md:px-0 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {{-- Episode List (Compact Grid) --}}
+            <div class="px-4 md:px-0 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                 @foreach($episodes as $episode)
                     @php
                         $isBought = in_array($episode->id, $unlockedEpisodeIds ?? []);
                     @endphp
 
                     <a href="{{ route('anime.watch', $episode->id) }}" wire:navigate
-                       class="group relative p-1 rounded-2xl transition-all duration-300 cursor-pointer hover:scale-[1.02] active:scale-95">
+                       class="group relative overflow-hidden rounded-xl bg-[#0e0e12] border border-white/5 hover:border-purple-500/30 transition-all duration-300 active:scale-[0.98]">
                         
-                        <div class="absolute inset-0 rounded-2xl bg-gradient-to-r from-purple-500 to-blue-500 opacity-0 group-hover:opacity-50 blur-sm transition duration-500"></div>
+                        {{-- Hover Glow Effect --}}
+                        <div class="absolute inset-0 bg-gradient-to-r from-purple-500/10 to-blue-500/10 opacity-0 group-hover:opacity-100 transition duration-500"></div>
 
-                        <div class="relative h-full bg-[#0e0e12] rounded-xl p-4 border border-white/5 group-hover:border-white/10 flex items-center gap-4 z-10">
+                        <div class="relative flex items-center gap-3 p-2">
                             
-                            <div class="shrink-0 w-14 h-14 rounded-xl bg-white/5 flex items-center justify-center border border-white/5 group-hover:bg-purple-600/20 group-hover:border-purple-500/30 transition">
-                                <span class="text-sm font-black text-slate-400 group-hover:text-purple-400 transition">
-                                    {{ $episode->episode_number }}
-                                </span>
-                            </div>
-
-                            <div class="min-w-0 flex-1">
-                                <h4 class="font-bold text-sm text-slate-200 group-hover:text-white truncate transition">
-                                    {{ $episode->title }}
-                                </h4>
+                            {{-- 1. Compact Thumbnail (Left) --}}
+                            <div class="shrink-0 relative w-20 h-12 md:w-24 md:h-14 rounded-lg overflow-hidden bg-slate-800 border border-white/5">
+                                @if($episode->thumbnail_url)
+                                    <img src="{{ $episode->thumbnail_url }}" class="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition">
+                                @else
+                                    <div class="w-full h-full flex items-center justify-center text-slate-600">
+                                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                    </div>
+                                @endif
                                 
-                                <div class="flex items-center gap-2 mt-1.5">
-                                    <span class="text-[10px] font-bold px-1.5 py-0.5 rounded 
-                                        {{ $episode->is_premium ? 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20' : 'bg-green-500/10 text-green-500 border border-green-500/20' }}">
-                                        {{ $episode->is_premium ? 'PREMIUM' : 'FREE' }}
-                                    </span>
-
-                                    @if($episode->is_premium && !$isBought)
-                                        <svg class="w-3 h-3 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                                        </svg>
-                                    @elseif($isBought)
-                                        <svg class="w-3 h-3 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
-                                        </svg>
-                                    @endif
+                                {{-- Play Overlay --}}
+                                <div class="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition">
+                                    <svg class="w-6 h-6 text-white drop-shadow-md" fill="currentColor" viewBox="0 0 20 20"><path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z"/></svg>
                                 </div>
                             </div>
 
-                            <div class="shrink-0 opacity-0 group-hover:opacity-100 transition -translate-x-2 group-hover:translate-x-0">
-                                <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                            {{-- 2. Info (Center) --}}
+                            <div class="flex-1 min-w-0 flex flex-col justify-center">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-[10px] font-bold text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded">
+                                        EP {{ $episode->episode_number }}
+                                    </span>
+                                </div>
+                                <h4 class="text-xs md:text-sm font-medium text-slate-200 truncate mt-0.5 group-hover:text-white transition">
+                                    {{ $episode->title }}
+                                </h4>
                             </div>
+
+                            {{-- 3. Coin Price / Status (Right) --}}
+                            <div class="shrink-0 flex flex-col items-end gap-1">
+                                @if(!$episode->is_premium)
+                                    {{-- FREE --}}
+                                    <span class="text-[10px] font-bold text-green-400 bg-green-500/10 border border-green-500/20 px-2 py-1 rounded-md">
+                                        FREE
+                                    </span>
+                                @elseif($isBought)
+                                    {{-- OWNED --}}
+                                    <span class="text-[10px] font-bold text-cyan-400 bg-cyan-500/10 border border-cyan-500/20 px-2 py-1 rounded-md flex items-center gap-1">
+                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                                        OWNED
+                                    </span>
+                                @else
+                                    {{-- LOCKED (PRICE) --}}
+                                    <div class="flex flex-col items-end">
+                                        <span class="text-xs font-bold text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 px-2 py-1 rounded-md flex items-center gap-1 shadow-[0_0_10px_rgba(234,179,8,0.1)]">
+                                            <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z"></path><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clip-rule="evenodd"></path></svg>
+                                            {{ $episode->coin_price }}
+                                        </span>
+                                    </div>
+                                @endif
+                            </div>
+
                         </div>
                     </a>
                 @endforeach

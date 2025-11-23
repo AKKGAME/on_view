@@ -4,6 +4,7 @@ namespace App\Livewire;
 
 use App\Models\Episode;
 use App\Models\Transaction;
+use App\Models\WatchHistory; // ✅ History Model ကို Import လုပ်ပါ
 use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
 
@@ -13,12 +14,31 @@ class WatchEpisode extends Component
     public $anime;
     public $playlist = []; 
     public $isUnlocked = false;
+    public $isInWatchlist = false; // ✅ Watchlist variable ထည့်ပါ
 
     public function mount(Episode $episode)
     {
         $this->episode = $episode;
         $this->anime = $episode->season->anime; 
         $this->playlist = $episode->season->episodes()->orderBy('episode_number')->get();
+
+        if (Auth::check()) {
+            // ၁. Watchlist ထဲရှိမရှိ စစ်ခြင်း
+            $this->isInWatchlist = Auth::user()->watchlist()->where('anime_id', $this->anime->id)->exists();
+
+            // ၂. Continue Watching အတွက် History မှတ်ခြင်း (အရေးကြီး)
+            WatchHistory::updateOrCreate(
+                [
+                    'user_id' => Auth::id(),
+                    'anime_id' => $this->anime->id, 
+                ],
+                [
+                    'episode_id' => $this->episode->id, // လက်ရှိကြည့်နေသော အပိုင်းကို Update လုပ်မယ်
+                    'updated_at' => now(), 
+                ]
+            );
+        }
+
         $this->checkUnlockStatus();
     }
 
@@ -45,7 +65,6 @@ class WatchEpisode extends Component
         
         $user = Auth::user();
 
-        // (Safety Check) ဝယ်ပြီးသား ဖြစ်နေရင် Coin ထပ်မဖြတ်တော့ဘဲ Success ပြမယ်
         if ($this->isUnlocked) {
             $this->dispatch('notify', 
                 type: 'info', 
@@ -55,7 +74,6 @@ class WatchEpisode extends Component
             return;
         }
 
-        // Coin မလောက်ရင် Error ပြမယ်
         if ($user->coins < $this->episode->coin_price) {
             $this->dispatch('notify', 
                 type: 'error', 
@@ -65,10 +83,8 @@ class WatchEpisode extends Component
             return;
         }
 
-        // Coin ဖြတ်မယ်
         $user->decrement('coins', $this->episode->coin_price);
         
-        // Transaction မှတ်မယ်
         Transaction::create([
             'user_id' => $user->id,
             'type' => 'purchase',
@@ -78,11 +94,26 @@ class WatchEpisode extends Component
 
         $this->isUnlocked = true;
 
-        // ✅ ဝယ်ပြီးကြောင်း Notification ပြမည့် ကုဒ်
         $this->dispatch('notify', 
             type: 'success', 
             title: 'Episode Unlocked!', 
-            message: "You spent {$this->episode->coin_price} coins to watch this episode."
+            message: "You spent {$this->episode->coin_price} coins."
+        );
+    }
+
+    public function toggleWatchlist()
+    {
+        if (!Auth::check()) {
+            return redirect()->route('login');
+        }
+
+        Auth::user()->watchlist()->toggle($this->anime->id);
+        $this->isInWatchlist = !$this->isInWatchlist; // UI မှာ ချက်ချင်းပြောင်းအောင်
+
+        $this->dispatch('notify', 
+            type: 'success', 
+            title: $this->isInWatchlist ? 'Added to Watchlist' : 'Removed from Watchlist',
+            message: 'Your library has been updated.'
         );
     }
 

@@ -3,37 +3,28 @@
 namespace App\Livewire;
 
 use App\Models\Anime;
-use App\Models\Episode;
 use App\Models\WatchHistory;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
-use Livewire\WithPagination; // Pagination အတွက် Trait ထည့်ထားပါတယ်
+use Livewire\WithPagination;
 
 class Home extends Component
 {
     use WithPagination;
 
-    // History ဖျက်မယ့် Function
+    // History ဖျက်မယ့် Function (ပိုမိုမြန်ဆန်အောင် ပြင်ထားသည်)
     public function removeFromHistory($animeId)
     {
         if (!Auth::check()) return;
 
-        $user = Auth::user();
-
-        // ၁. ဒီ Anime မှာပါတဲ့ Episode ID အကုန်လုံးကို ရှာမယ်
-        $episodeIds = Episode::whereHas('season', function ($query) use ($animeId) {
-            $query->where('anime_id', $animeId);
-        })->pluck('id');
-
-        // ၂. User ရဲ့ History ထဲက ဒီ Anime နဲ့ဆိုင်တာမှန်သမျှ ဖျက်မယ်
-        WatchHistory::where('user_id', $user->id)
-            ->whereIn('episode_id', $episodeIds)
+        // anime_id ပါပြီးသားမို့ တိုက်ရိုက်ဖျက်လို့ရပါပြီ (Query အဆင့်ဆင့်ပတ်စရာမလိုတော့ပါ)
+        WatchHistory::where('user_id', Auth::id())
+            ->where('anime_id', $animeId)
             ->delete();
 
-        // Custom Gaming Alert (Notification)
         $this->dispatch('notify', 
             type: 'success', 
-            title: 'Successfully', 
+            title: 'Removed', 
             message: 'Removed from Continue Watching'
         );
     }
@@ -43,29 +34,27 @@ class Home extends Component
         $continueWatching = [];
 
         if (Auth::check()) {
-            $history = WatchHistory::where('user_id', Auth::id())
-                ->with('episode.season.anime')
-                ->latest('updated_at')
-                ->get();
-
-            $continueWatching = $history->unique(function ($item) {
-                return $item->episode?->season?->anime_id;
-            })->take(5);
+            // ၁. Login ဝင်ထားရင် History ယူမယ်
+            $continueWatching = WatchHistory::where('user_id', Auth::id())
+                ->with(['anime', 'episode']) // Model မှာ anime() relation ရှိရပါမယ်
+                ->latest('updated_at') // နောက်ဆုံးကြည့်တာ အပေါ်ဆုံးတင်မယ်
+                ->get()
+                ->unique('anime_id') // Anime တစ်ခုကို Episode တစ်ခုပဲပြမယ် (Duplicate မထပ်အောင်)
+                ->take(10); // ၁၀ ကားစာပဲ ယူမယ်
         }
 
-        // Slider အတွက် ၈ ကား သီးသန့်ယူမယ် (Random)
-        $sliderAnimes = Anime::with('seasons')
-                        ->where('is_completed', false) // Ongoing တွေကို ဦးစားပေးပြမယ် (Optional)
+        // Slider အတွက် ၈ ကား (Random)
+        $sliderAnimes = Anime::where('is_completed', false)
                         ->inRandomOrder()
                         ->take(8) 
                         ->get();
         
-        // Grid အတွက်ကတော့ Latest အတိုင်းသွားမယ် (Pagination 12 ခုစီ)
-        $latestAnimes = Anime::with('seasons')->latest()->paginate(12);
+        // Grid အတွက် Latest Anime များ
+        $latestAnimes = Anime::latest()->paginate(12);
 
         return view('livewire.home', [
-            'sliderAnimes' => $sliderAnimes, // Slider Data
-            'animes' => $latestAnimes, // Grid Data
+            'sliderAnimes' => $sliderAnimes,
+            'animes' => $latestAnimes,
             'continueWatching' => $continueWatching,
         ]);
     }

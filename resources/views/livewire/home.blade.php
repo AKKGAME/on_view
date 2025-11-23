@@ -41,7 +41,7 @@
                      class="absolute inset-0 w-full h-full">
                     
                     <!-- Background Image -->
-                    <img src="{{ $anime->cover_url ? asset('storage/' . $anime->cover_url) : asset('storage/' . $anime->thumbnail_url) }}" 
+                    <img src="{{ $anime->cover_url ? $anime->cover_url : $anime->thumbnail_url }}" 
                          class="w-full h-full object-cover object-center">
                     
                     <!-- Gradient Overlay -->
@@ -147,7 +147,7 @@
                         <div class="relative group flex-shrink-0">
                             <!-- Card -->
                             <a href="{{ route('anime.show', $anime->slug) }}" class="block w-64 h-32 rounded-xl overflow-hidden border border-slate-800 hover:border-orange-500/50 transition snap-start relative">
-                                <img src="{{ $anime->cover_url ? asset('storage/' . $anime->cover_url) : asset('storage/' . $anime->thumbnail_url) }}" 
+                                <img src="{{ $anime->cover_url ? $anime->cover_url : $anime->thumbnail_url }}" 
                                      class="absolute inset-0 w-full h-full object-cover opacity-40 group-hover:opacity-60 group-hover:scale-105 transition duration-500">
                                 <div class="absolute inset-0 bg-gradient-to-r from-slate-950 via-slate-950/60 to-transparent"></div>
                                 <div class="absolute inset-0 p-4 flex flex-col justify-center pr-10">
@@ -206,8 +206,7 @@
                     
                     <div class="aspect-[2/3] w-full overflow-hidden rounded-lg md:rounded-xl bg-slate-800 relative shadow-md group-hover:shadow-purple-500/20 transition duration-300">
                         
-                        <img src="{{ $anime->thumbnail_url ? asset('storage/' . $anime->thumbnail_url) : 'https://via.placeholder.com/300x450' }}" 
-                             class="h-full w-full object-cover transition duration-500 group-hover:scale-110 group-hover:opacity-40">
+                        <img src="{{ $anime->thumbnail_url ? $anime->thumbnail_url : 'https://via.placeholder.com/300x450' }}" class="h-full w-full object-cover transition duration-500 group-hover:scale-110 group-hover:opacity-40">
                         
                         <div class="absolute top-2 right-2 bg-black/60 backdrop-blur-sm px-1.5 py-0.5 rounded text-[10px] font-bold text-white border border-white/10">
                             {{ $anime->total_episodes }} EP
