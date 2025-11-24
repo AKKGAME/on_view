@@ -4,6 +4,10 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>{{ $title ?? 'OnView Anime' }}</title>
+
+    <link rel="manifest" href="{{ asset('manifest.json') }}">
+    <meta name="theme-color" content="#05050A">
+    <link rel="apple-touch-icon" href="{{ asset('logo.png') }}">
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -26,6 +30,7 @@
         .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom); }
         .safe-area-top { padding-top: env(safe-area-inset-top); }
     </style>
+
 </head>
 <body class="bg-[#05050A] text-white antialiased selection:bg-purple-500 selection:text-white overflow-x-hidden">
 

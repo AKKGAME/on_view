@@ -1,0 +1,18 @@
+{
+    "name": "On View",
+    "short_name": "OnView",
+    "start_url": "/",
+    "background_color": "#05050A",
+    "theme_color": "#05050A",
+    "description": "Watch your favorite anime anytime, anywhere.",
+    "display": "standalone",
+    "orientation": "portrait",
+    "icons": [
+        {
+            "src": "/logo.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any maskable"
+        }
+    ]
+}
