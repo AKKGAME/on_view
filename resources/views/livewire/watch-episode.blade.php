@@ -1,12 +1,11 @@
 <div class="min-h-screen bg-[#05050A] text-white pb-20 relative overflow-x-hidden font-sans selection:bg-purple-500 selection:text-white">
 
+    {{-- Styles --}}
     <style>
-        /* Plyr Custom Theme (Purple) */
         :root { --plyr-color-main: #a855f7; }
-        .plyr--full-ui input[type=range] { color: #a855f7; }
+        .plyr { border-radius: 12px; overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
         .plyr__control--overlaid { background: rgba(168, 85, 247, 0.8); }
-        .plyr__control:hover { background: #a855f7; }
-        .plyr { border-radius: 12px; overflow: hidden; }
+        .plyr__control--overlaid:hover { background: #a855f7; }
         
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
@@ -63,30 +62,43 @@
                 <div class="relative group w-full px-4 lg:px-0 mt-4 lg:mt-0">
                     <div class="hidden lg:block absolute -inset-1 bg-gradient-to-r from-purple-600 to-blue-600 rounded-2xl blur opacity-20 group-hover:opacity-30 transition duration-1000"></div>
                     
-                    <div class="relative w-full bg-black rounded-xl lg:rounded-2xl overflow-hidden shadow-2xl lg:ring-1 ring-white/10 z-10 aspect-video">
+                    <div class="relative w-full bg-black rounded-xl lg:rounded-2xl overflow-hidden shadow-2xl lg:ring-1 ring-white/10 z-10 aspect-video"
+                         x-data="{ loading: true }">
+                        
                         @if($isUnlocked)
-                            {{-- Plyr Player Container --}}
-                            <div class="w-full h-full" wire:ignore>
+                            {{-- Loading Placeholder --}}
+                            <div class="absolute inset-0 flex flex-col items-center justify-center bg-black z-20 transition-opacity duration-500"
+                                 x-show="loading"
+                                 x-transition:leave="opacity-0">
+                                <div class="absolute inset-0 bg-cover bg-center opacity-30 blur-md scale-110"
+                                     style="background-image: url('{{ $episode->thumbnail_url ?? $anime->cover_url }}');">
+                                </div>
+                                <div class="relative z-10 flex flex-col items-center gap-3">
+                                    <div class="relative w-14 h-14">
+                                        <div class="absolute inset-0 rounded-full border-4 border-white/10"></div>
+                                        <div class="absolute inset-0 rounded-full border-4 border-purple-500 border-t-transparent animate-spin"></div>
+                                    </div>
+                                    <span class="text-xs font-bold text-white/60 tracking-widest animate-pulse">LOADING...</span>
+                                </div>
+                            </div>
+
+                            {{-- Player --}}
+                            <div class="w-full h-full relative z-10" wire:ignore>
                                 @if(Str::contains($episode->video_url, ['youtube.com', 'youtu.be']))
-                                    {{-- YouTube --}}
-                                    <div id="player" data-plyr-provider="youtube" data-plyr-embed-id="{{ $episode->video_url }}"></div>
+                                    <div id="player" data-plyr-provider="youtube" data-plyr-embed-id="{{ $episode->video_url }}" x-init="setTimeout(() => loading = false, 2000)"></div>
                                 @elseif(Str::contains($episode->video_url, ['vimeo.com']))
-                                    {{-- Vimeo --}}
-                                    <div id="player" data-plyr-provider="vimeo" data-plyr-embed-id="{{ $episode->video_url }}"></div>
+                                    <div id="player" data-plyr-provider="vimeo" data-plyr-embed-id="{{ $episode->video_url }}" x-init="setTimeout(() => loading = false, 2000)"></div>
                                 @elseif(Str::endsWith($episode->video_url, ['.mp4', '.mkv', '.webm']))
-                                    {{-- Direct File --}}
-                                    <video id="player" playsinline controls>
+                                    <video id="player" playsinline controls data-poster="{{ $episode->thumbnail_url }}" x-on:canplay="loading = false" x-on:loadeddata="loading = false">
                                         <source src="{{ route('stream.play', $episode->id) }}" type="video/mp4" />
                                     </video>
                                 @else
-                                    {{-- Fallback to Iframe for other sources --}}
-                                    <iframe src="{{ $episode->video_url }}" class="w-full h-full" allowfullscreen></iframe>
+                                    <iframe src="{{ $episode->video_url }}" class="w-full h-full" frameborder="0" allowfullscreen onload="this.parentElement.parentElement.__x.$data.loading = false"></iframe>
                                 @endif
                             </div>
                         @else
-                            {{-- LOCKED UI --}}
-                            <div class="absolute inset-0 flex flex-col items-center justify-center bg-[#0a0a0a] text-center p-4" 
-                                 x-data="{ showConfirm: false }">
+                            {{-- Locked UI --}}
+                            <div class="absolute inset-0 flex flex-col items-center justify-center bg-[#0a0a0a] text-center p-4" x-data="{ showConfirm: false }">
                                 <div class="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-10 pointer-events-none"></div>
                                 
                                 <div x-show="!showConfirm" class="relative z-10 flex flex-col items-center max-w-sm">
@@ -124,7 +136,7 @@
                 {{-- CONTROLS & TITLE --}}
                 <div class="mt-4 px-4 lg:px-0 flex flex-col md:flex-row gap-4 justify-between items-start">
                     <div class="w-full md:w-auto">
-                        <h1 class="text-lg lg:text-2xl font-bold text-white leading-snug line-clamp-2">{{ $episode->title }}</h1>
+                        <!-- <h1 class="text-lg lg:text-2xl font-bold text-white leading-snug line-clamp-2">{{ $episode->title }}</h1> -->
                         <div class="flex items-center gap-2 mt-1.5 text-xs md:text-sm text-slate-400 font-medium">
                             <span class="bg-white/5 px-2 py-0.5 rounded border border-white/5">EP {{ $episode->episode_number }}</span>
                             <span class="w-1 h-1 bg-slate-600 rounded-full"></span>
@@ -132,7 +144,7 @@
                         </div>
                     </div>
                     
-                    <div class="w-full md:w-auto flex items-center gap-2 bg-[#1a1a1a] p-1 rounded-xl border border-white/5">
+                    <!-- <div class="w-full md:w-auto flex items-center gap-2 bg-[#1a1a1a] p-1 rounded-xl border border-white/5">
                         @php
                             $prev = $playlist->where('episode_number', '<', $episode->episode_number)->last();
                             $next = $playlist->where('episode_number', '>', $episode->episode_number)->first();
@@ -150,7 +162,7 @@
                            class="flex-1 md:flex-none px-6 py-2.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-bold text-sm disabled:opacity-30 disabled:bg-white/5 disabled:cursor-not-allowed transition flex items-center justify-center gap-2 shadow-lg shadow-purple-900/20">
                            Next <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
                         </button>
-                    </div>
+                    </div> -->
                 </div>
 
                 {{-- DESKTOP COMMENTS --}}
@@ -164,43 +176,87 @@
 
             {{-- RIGHT COLUMN: PLAYLIST --}}
             <div class="w-full lg:w-[380px] shrink-0 lg:py-8 lg:pr-8 flex flex-col">
+                
                 <div class="mt-6 lg:mt-0 px-4 lg:px-0">
-                    <div class="bg-[#0f0f13] border border-white/5 rounded-xl lg:rounded-2xl overflow-hidden flex flex-col shadow-xl lg:sticky lg:top-24 h-auto max-h-[400px] lg:max-h-[calc(100vh-120px)]">
-                        <div class="p-4 border-b border-white/5 bg-[#131318] flex justify-between items-center shrink-0">
-                            <h3 class="font-bold text-white text-base lg:text-lg">Up Next</h3>
-                            <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">{{ $playlist->count() }} EPS</span>
-                        </div>
-                        <div class="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar" 
+                    
+                    {{-- Playlist Header --}}
+                    <div class="p-4 bg-[#131318] border border-white/5 rounded-t-xl lg:rounded-t-2xl flex justify-between items-center">
+                        <h3 class="font-bold text-white text-base lg:text-lg">Episodes</h3>
+                        <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">{{ $playlist->count() }} EPS</span>
+                    </div>
+                    
+                    {{-- CONTENT BOX --}}
+                    <div class="bg-[#0f0f13] border-x border-b border-white/5 rounded-b-xl lg:rounded-b-2xl overflow-hidden">
+                        <div class="h-auto max-h-[400px] lg:h-[calc(100vh-180px)] overflow-y-auto p-3 custom-scrollbar lg:sticky lg:top-24" 
                              x-data x-init="$el.querySelector('.active-episode')?.scrollIntoView({ block: 'center', behavior: 'smooth' })">
-                            @foreach($playlist as $ep)
-                                @php $isActive = $ep->id === $episode->id; @endphp
-                                <a href="{{ route('anime.watch', $ep->id) }}" wire:navigate
-                                   class="group flex items-center gap-3 p-2 rounded-lg cursor-pointer transition border border-transparent
-                                   {{ $isActive ? 'bg-purple-600/10 border-purple-500/50 active-episode' : 'hover:bg-white/5 hover:border-white/5' }}">
-                                    <div class="relative w-24 lg:w-28 aspect-video bg-slate-800 rounded-md overflow-hidden shrink-0 flex items-center justify-center group-hover:ring-1 ring-white/20 transition">
-                                        <span class="text-[10px] lg:text-xs font-bold text-slate-500">EP {{ $ep->episode_number }}</span>
+                             
+                            {{-- MOBILE: NUM PAD GRID --}}
+                            <div class="grid grid-cols-5 gap-2 lg:hidden">
+                                @foreach($playlist as $ep)
+                                    @php 
+                                        $isActive = $ep->id === $episode->id; 
+                                        $isBought = in_array($ep->id, \App\Models\Transaction::where('user_id', auth()->id())->where('type', 'purchase')->pluck('description')->map(fn($desc) => (int) str_replace('ep_', '', $desc))->toArray() ?? []);
+                                        
+                                        // Mobile Button Colors
+                                        $btnClass = "bg-[#1a1a20] text-slate-400 border border-white/5 hover:bg-white/10"; 
+                                        if ($isActive) {
+                                            $btnClass = "bg-purple-600 text-white border-purple-500 shadow-lg scale-105 z-10 active-episode";
+                                        } elseif ($ep->is_premium) {
+                                            if ($isBought) $btnClass = "bg-[#1a1a20] text-cyan-400 border-cyan-500/30";
+                                            else $btnClass = "bg-[#1a1a20] text-yellow-500 border-yellow-500/30";
+                                        }
+                                    @endphp
+
+                                    <a href="{{ route('anime.watch', $ep->id) }}" wire:navigate
+                                       class="relative aspect-square rounded-lg flex items-center justify-center transition-all duration-200 active:scale-95 {{ $btnClass }}">
+                                        <span class="text-sm font-bold">{{ $ep->episode_number }}</span>
                                         @if($isActive)
-                                            <div class="absolute inset-0 bg-black/60 flex items-center justify-center backdrop-blur-[1px]">
-                                                <div class="flex items-end gap-[2px] h-3">
-                                                    <div class="w-[2px] bg-purple-400 animate-[bounce_1s_infinite] h-2"></div>
-                                                    <div class="w-[2px] bg-purple-400 animate-[bounce_1.2s_infinite] h-3"></div>
-                                                    <div class="w-[2px] bg-purple-400 animate-[bounce_0.8s_infinite] h-1"></div>
-                                                </div>
-                                            </div>
+                                            <div class="absolute bottom-1 w-1 h-1 bg-white rounded-full animate-pulse"></div>
+                                        @elseif($ep->is_premium && !$isBought)
+                                            <div class="absolute top-0.5 right-0.5 opacity-60"><svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"></path></svg></div>
                                         @endif
-                                    </div>
-                                    <div class="min-w-0 flex-1">
-                                        <h4 class="text-xs lg:text-sm font-bold truncate transition {{ $isActive ? 'text-purple-300' : 'text-slate-300 group-hover:text-white' }}">{{ $ep->title }}</h4>
-                                        <div class="flex items-center gap-2 mt-1">
-                                            <span class="text-[9px] font-bold px-1.5 py-0.5 rounded {{ $ep->is_premium ? 'bg-yellow-500/10 text-yellow-500' : 'bg-green-500/10 text-green-500' }}">{{ $ep->is_premium ? 'PREMIUM' : 'FREE' }}</span>
-                                            @if($isActive)<span class="text-[9px] font-bold text-purple-400 uppercase tracking-wider">Playing</span>@endif
+                                    </a>
+                                @endforeach
+                            </div>
+
+                            {{-- DESKTOP: DETAILED LIST --}}
+                            <div class="hidden lg:flex flex-col gap-1">
+                                @foreach($playlist as $ep)
+                                    @php 
+                                        $isActive = $ep->id === $episode->id; 
+                                        $isBought = in_array($ep->id, \App\Models\Transaction::where('user_id', auth()->id())->where('type', 'purchase')->pluck('description')->map(fn($desc) => (int) str_replace('ep_', '', $desc))->toArray() ?? []);
+                                    @endphp
+
+                                    <a href="{{ route('anime.watch', $ep->id) }}" wire:navigate
+                                       class="group flex items-center gap-3 p-2 rounded-lg cursor-pointer transition border border-transparent
+                                       {{ $isActive ? 'bg-purple-600/10 border-purple-500/50 active-episode' : 'hover:bg-white/5 hover:border-white/5' }}">
+                                        <div class="relative w-28 aspect-video bg-slate-800 rounded-md overflow-hidden shrink-0 flex items-center justify-center group-hover:ring-1 ring-white/20 transition">
+                                            <span class="text-xs font-bold text-slate-500">EP {{ $ep->episode_number }}</span>
+                                            @if($isActive)
+                                                <div class="absolute inset-0 bg-black/60 flex items-center justify-center backdrop-blur-[1px]">
+                                                    <div class="flex items-end gap-[2px] h-3">
+                                                        <div class="w-[2px] bg-purple-400 animate-[bounce_1s_infinite] h-2"></div>
+                                                        <div class="w-[2px] bg-purple-400 animate-[bounce_1.2s_infinite] h-3"></div>
+                                                        <div class="w-[2px] bg-purple-400 animate-[bounce_0.8s_infinite] h-1"></div>
+                                                    </div>
+                                                </div>
+                                            @endif
                                         </div>
-                                    </div>
-                                </a>
-                            @endforeach
+                                        <div class="min-w-0 flex-1">
+                                            <h4 class="text-sm font-bold truncate transition {{ $isActive ? 'text-purple-300' : 'text-slate-300 group-hover:text-white' }}">{{ $ep->title }}</h4>
+                                            <div class="flex items-center gap-2 mt-1">
+                                                <span class="text-[9px] font-bold px-1.5 py-0.5 rounded {{ $ep->is_premium ? 'bg-yellow-500/10 text-yellow-500' : 'bg-green-500/10 text-green-500' }}">{{ $ep->is_premium ? 'PREMIUM' : 'FREE' }}</span>
+                                                @if($isActive)<span class="text-[9px] font-bold text-purple-400 uppercase tracking-wider">Playing</span>@endif
+                                            </div>
+                                        </div>
+                                    </a>
+                                @endforeach
+                            </div>
                         </div>
                     </div>
                 </div>
+
+                {{-- MOBILE COMMENTS --}}
                 <div class="lg:hidden px-4 mt-8 border-t border-white/5 pt-6">
                     <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2"><span class="text-purple-500">#</span> Comments</h3>
                     @livewire('episode-comments', ['episodeId' => $episode->id])
@@ -208,15 +264,16 @@
             </div>
         </div>
     </div>
+</div>
 
 {{-- Initialize Plyr --}}
 <script>
     document.addEventListener('livewire:navigated', () => {
         const player = new Plyr('#player', {
-            controls: ['play-large', 'auto-play', 'play', 'progress', 'current-time', 'mute', 'volume', 'captions', 'settings', 'pip', 'airplay', 'fullscreen'],
+            controls: ['play-large', 'rewind', 'play', 'fast-forward', 'progress', 'current-time', 'duration', 'mute', 'volume', 'captions', 'settings', 'fullscreen'],
             theme: '#a855f7',
+            tooltips: { controls: true, seek: true },
+            keyboard: { focused: true, global: true },
         });
     });
 </script>
-</div>
-
