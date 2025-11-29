@@ -3,9 +3,10 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\AnimeResource\Pages;
+use App\Filament\Resources\AnimeResource\RelationManagers\SeasonsRelationManager;
 use App\Models\Anime;
-use App\Models\Genre;
 use App\Models\Setting;
+use App\Models\Genre;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Forms\Set;
@@ -201,10 +202,10 @@ class AnimeResource extends Resource
             ->columns([
                 Tables\Columns\ImageColumn::make('thumbnail_url')
                     ->label('Poster')
-                    ->width(60)
-                    ->height(90)
+                    ->width(50)
+                    ->height(75)
                     ->extraImgAttributes([
-                        'class' => 'object-cover rounded-lg shadow-md border border-gray-200 dark:border-gray-700',
+                        'class' => 'object-cover rounded-md',
                         'style' => 'aspect-ratio: 2/3;',
                     ]),
 
@@ -251,111 +252,122 @@ class AnimeResource extends Resource
                     ->preload(),
             ])
             ->actions([
-                // ==================================================
-                // ACTION 1: FETCH SEASONS & EPISODES (TMDB)
-                // ==================================================
-                Tables\Actions\Action::make('fetch_seasons')
-                    ->label('Fetch TMDB')
-                    ->icon('heroicon-o-cloud-arrow-down')
-                    ->color('warning')
-                    ->requiresConfirmation()
-                    ->modalHeading('Import Seasons & Episodes')
-                    ->modalDescription('This process may take a few minutes. Please do not close the window.')
-                    ->action(function (Anime $record) {
-                        
-                        // ✅ FIX: Time Limit & Memory Limit တိုးခြင်း
-                        set_time_limit(300); 
-                        ini_set('memory_limit', '512M');
+                // 1. PRIMARY ACTION: MANAGE SEASONS (Button Style)
+                Tables\Actions\Action::make('manage_seasons')
+                    ->label('Seasons')
+                    ->icon('heroicon-o-rectangle-stack')
+                    ->color('info')
+                    ->button() // Button အဖြစ်ပြမည်
+                    ->url(fn (Anime $record) => AnimeResource::getUrl('seasons', ['record' => $record])),
 
-                        $apiKey = Setting::where('key', 'tmdb_api_key')->value('value');
-                        
-                        if (!$apiKey || !$record->tmdb_id) {
-                            Notification::make()->title('Error: Missing API Key or TMDB ID')->danger()->send();
-                            return;
-                        }
+                // 2. SECONDARY ACTIONS (Grouped in Dropdown)
+                Tables\Actions\ActionGroup::make([
+                    
+                    // View Action
+                    Tables\Actions\EditAction::make(),
 
-                        $response = Http::withoutVerifying()
-                            ->timeout(60) // ✅ Connection Timeout တိုးခြင်း
-                            ->get("https://api.themoviedb.org/3/tv/{$record->tmdb_id}", [
-                                'api_key' => $apiKey,
-                                'language' => 'en-US',
-                            ]);
+                    // TMDB Fetch Action
+                    Tables\Actions\Action::make('fetch_seasons')
+                        ->label('Sync TMDB')
+                        ->icon('heroicon-o-cloud-arrow-down')
+                        ->color('warning')
+                        ->requiresConfirmation()
+                        ->modalHeading('Import Seasons & Episodes')
+                        ->modalDescription('This process may take a few minutes. Please do not close the window.')
+                        ->action(function (Anime $record) {
+                            
+                            set_time_limit(300); 
+                            ini_set('memory_limit', '512M');
 
-                        if ($response->failed()) {
-                            Notification::make()->title('TMDB Connection Failed')->danger()->send();
-                            return;
-                        }
+                            $apiKey = Setting::where('key', 'tmdb_api_key')->value('value');
+                            
+                            if (!$apiKey || !$record->tmdb_id) {
+                                Notification::make()->title('Error: Missing API Key or TMDB ID')->danger()->send();
+                                return;
+                            }
 
-                        $data = $response->json();
-                        
-                        if (empty($data['seasons'])) {
-                            Notification::make()->title('No Seasons Found')->warning()->send();
-                            return;
-                        }
-
-                        foreach ($data['seasons'] as $tmdbSeason) {
-                            if ($tmdbSeason['season_number'] === 0) continue; 
-
-                            $season = $record->seasons()->updateOrCreate(
-                                ['season_number' => $tmdbSeason['season_number']],
-                                [
-                                    'title' => $tmdbSeason['name'],
-                                    'slug' => Str::slug($record->title . '-season-' . $tmdbSeason['season_number']),
-                                ]
-                            );
-
-                            $seasonResponse = Http::withoutVerifying()
-                                ->timeout(60) // ✅ Season Request မှာလည်း Timeout တိုးခြင်း
-                                ->get("https://api.themoviedb.org/3/tv/{$record->tmdb_id}/season/{$tmdbSeason['season_number']}", [
+                            $response = Http::withoutVerifying()
+                                ->timeout(60)
+                                ->get("https://api.themoviedb.org/3/tv/{$record->tmdb_id}", [
                                     'api_key' => $apiKey,
                                     'language' => 'en-US',
                                 ]);
 
-                            if ($seasonResponse->successful()) {
-                                $seasonData = $seasonResponse->json();
-                                
-                                foreach ($seasonData['episodes'] as $tmdbEpisode) {
-                                    $season->episodes()->updateOrCreate(
-                                        ['episode_number' => $tmdbEpisode['episode_number']],
-                                        [
-                                            'title' => $tmdbEpisode['name'],
-                                            'slug' => Str::slug($record->title . '-s' . $tmdbSeason['season_number'] . '-ep' . $tmdbEpisode['episode_number']),
-                                            'overview' => $tmdbEpisode['overview'],
-                                            'thumbnail_url' => $tmdbEpisode['still_path'] 
-                                                ? 'https://image.tmdb.org/t/p/original' . $tmdbEpisode['still_path'] 
-                                                : null,
-                                            'video_url' => '#', 
-                                            'is_premium' => false, 
-                                            'coin_price' => 0,
-                                            'xp_reward' => 10,
-                                        ]
-                                    );
-                                }
+                            if ($response->failed()) {
+                                Notification::make()->title('TMDB Connection Failed')->danger()->send();
+                                return;
                             }
-                            // ✅ API Rate Limit မထိအောင် နည်းနည်းနားမယ်
-                            sleep(1);
-                        }
 
-                        Notification::make()->title('Import Successful!')->success()->send();
-                    }),
+                            $data = $response->json();
+                            
+                            if (empty($data['seasons'])) {
+                                Notification::make()->title('No Seasons Found')->warning()->send();
+                                return;
+                            }
 
-                // ==================================================
-                // ACTION 2: MANAGE SEASONS (Custom Page Link)
-                // ==================================================
-                Tables\Actions\Action::make('manage_seasons')
-                    ->label('Seasons')
-                    ->icon('heroicon-o-rectangle-stack')
-                    ->color('primary')
-                    ->url(fn (Anime $record) => AnimeResource::getUrl('seasons', ['record' => $record])),
+                            foreach ($data['seasons'] as $tmdbSeason) {
+                                if ($tmdbSeason['season_number'] === 0) continue; 
 
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+                                $season = $record->seasons()->updateOrCreate(
+                                    ['season_number' => $tmdbSeason['season_number']],
+                                    [
+                                        'title' => $tmdbSeason['name'],
+                                        'slug' => Str::slug($record->title . '-season-' . $tmdbSeason['season_number']),
+                                    ]
+                                );
+
+                                $seasonResponse = Http::withoutVerifying()
+                                    ->timeout(60)
+                                    ->get("https://api.themoviedb.org/3/tv/{$record->tmdb_id}/season/{$tmdbSeason['season_number']}", [
+                                        'api_key' => $apiKey,
+                                        'language' => 'en-US',
+                                    ]);
+
+                                if ($seasonResponse->successful()) {
+                                    $seasonData = $seasonResponse->json();
+                                    
+                                    foreach ($seasonData['episodes'] as $tmdbEpisode) {
+                                        $season->episodes()->updateOrCreate(
+                                            ['episode_number' => $tmdbEpisode['episode_number']],
+                                            [
+                                                'title' => $tmdbEpisode['name'],
+                                                'slug' => Str::slug($record->title . '-s' . $tmdbSeason['season_number'] . '-ep' . $tmdbEpisode['episode_number']),
+                                                'overview' => $tmdbEpisode['overview'],
+                                                'thumbnail_url' => $tmdbEpisode['still_path'] 
+                                                    ? 'https://image.tmdb.org/t/p/original' . $tmdbEpisode['still_path'] 
+                                                    : null,
+                                                'video_url' => '#', 
+                                                'is_premium' => false, 
+                                                'coin_price' => 0,
+                                                'xp_reward' => 10,
+                                            ]
+                                        );
+                                    }
+                                }
+                                sleep(1);
+                            }
+
+                            Notification::make()->title('Import Successful!')->success()->send();
+                        }),
+
+                    Tables\Actions\DeleteAction::make(),
+                ])
+                ->icon('heroicon-m-ellipsis-vertical') // 3 dots icon
+                ->color('gray')
+                ->tooltip('More Options'),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
                     Tables\Actions\DeleteBulkAction::make(),
                 ]),
             ]);
+    }
+
+    public static function getRelations(): array
+    {
+        return [
+            // SeasonsRelationManager::class, // Custom Page သုံးတဲ့အတွက် ဒါကို ပိတ်ထားလို့ရပါတယ်
+        ];
     }
 
     public static function getPages(): array

@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>{{ $title ?? 'OnView Anime' }}</title>
+    <title>{{ $title ?? 'OnView' }}</title>
 
     <link rel="manifest" href="{{ asset('manifest.json') }}">
     <meta name="theme-color" content="#05050A">
@@ -14,6 +14,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
     <script src="https://cdn.plyr.io/3.7.8/plyr.js"></script>
+    <!--<link rel="stylesheet" href="{{ asset('build/assets/app-mAa9NCzg.css') }}">-->
+    <!--<script src="{{ asset('build/assets/app-CAiCLEjY.js') }}" defer></script>-->
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <style>
@@ -37,7 +39,11 @@
     <aside class="hidden md:flex flex-col w-[80px] fixed left-0 top-0 h-full bg-[#05050A]/90 border-r border-white/5 backdrop-blur-xl z-50 items-center py-8 justify-between">
         
         <a href="{{ route('home') }}" class="group relative h-10 w-10 rounded-xl bg-gradient-to-br from-purple-600 to-indigo-600 shadow-[0_0_15px_rgba(124,58,237,0.4)] flex items-center justify-center text-white font-bold text-xs tracking-wider hover:scale-110 transition duration-300">
-            OV
+            <img 
+                src="{{ asset('logo.png') }}" 
+                alt="OV Logo" 
+                class="h-full w-full object-cover rounded-xl" 
+            />
         </a>
 
         <nav class="flex flex-col gap-6 w-full items-center">
@@ -141,9 +147,19 @@
 
     <div class="md:hidden fixed top-0 w-full h-16 bg-[#05050A]/90 backdrop-blur-xl border-b border-white/5 z-40 px-4 flex items-center justify-between safe-area-top">
         
-        <a href="{{ route('home') }}" class="flex items-center gap-2">
-            <div class="h-8 w-8 rounded-lg bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center text-[10px] font-bold text-white shadow-lg shadow-purple-500/20">OV</div>
-            <span class="text-lg font-bold text-white font-gaming tracking-wide">On<span class="text-purple-500">View</span></span>
+        <a href="{{ route('home') }}" class="flex items-center gap-2 group">
+    
+            <div class="h-8 w-8 rounded-lg bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-purple-500/20 hover:scale-105 transition duration-300">
+                <img 
+                    src="{{ asset('logo.png') }}" 
+                    alt="OV Logo" 
+                    class="h-full w-full object-cover rounded-lg" 
+                />
+            </div>
+
+            <span class="text-lg font-bold text-white font-gaming tracking-wide">
+                On<span class="text-purple-500">View</span>
+            </span>
         </a>
 
         <div class="flex items-center gap-3">

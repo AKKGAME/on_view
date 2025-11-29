@@ -1,4 +1,4 @@
-<div class="min-h-screen pb-20 md:pb-10 bg-[#05050A] text-white font-sans selection:bg-purple-500 selection:text-white overflow-x-hidden">
+<div class="min-h-screen pb-20 md:pb-10 text-white font-sans selection:bg-purple-500 selection:text-white overflow-x-hidden">
     
     <style>
         .hide-scrollbar::-webkit-scrollbar { display: none; }
@@ -58,9 +58,9 @@
                             </h1>
 
                             {{-- Description (Desktop Only) --}}
-                            <p class="text-slate-300 text-sm md:text-lg mb-6 hidden md:block line-clamp-2 max-w-xl drop-shadow-md font-medium">
+                            <!-- <p class="text-slate-300 text-sm md:text-lg mb-6 hidden md:block line-clamp-2 max-w-xl drop-shadow-md font-medium">
                                 {{ $anime->description ?? 'Join the adventure in this amazing anime series.' }}
-                            </p>
+                            </p> -->
 
                             {{-- Watch Button --}}
                             <div class="flex items-center gap-3 w-full md:w-auto mt-4 md:mt-0">
@@ -75,6 +75,14 @@
                 </div>
             @endforeach
 
+            @auth
+                <div class="hidden md:block absolute right-0 top-1/2 -translate-y-1/2 z-30 w-72 mr-4 pointer-events-auto" style="margin-right: 20px;">
+                    <div class="bg-slate-900/90 backdrop-blur-xl rounded-2xl border border-slate-700/50 shadow-2xl overflow-hidden transform hover:-translate-y-1 transition duration-300">
+                        @livewire('daily-reward')
+                    </div>
+                </div>
+            @endauth
+
             {{-- Dots Indicators --}}
             <div class="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex gap-1.5">
                 @foreach($sliderAnimes as $index => $anime)
@@ -85,6 +93,15 @@
                 @endforeach
             </div>
         </div>
+
+        {{-- Mobile Daily Reward (Below Slider) --}}
+        @auth
+            <div class="md:hidden px-4 mb-8">
+                <div class="bg-slate-900 rounded-xl border border-slate-800 shadow-lg overflow-hidden">
+                    @livewire('daily-reward')
+                </div>
+            </div>
+        @endauth
     @endif
 
     {{-- 2. CONTINUE WATCHING SECTION --}}
@@ -176,9 +193,9 @@
                 <div class="w-1 h-5 md:h-8 bg-purple-500 rounded-full shadow-[0_0_10px_rgba(168,85,247,0.8)]"></div>
                 Latest Arrivals
             </h2>
-            <a href="{{ route('explore') }}" class="text-xs md:text-sm text-purple-400 hover:text-white transition font-bold flex items-center gap-1 group">
-                See All 
-                <svg class="w-3 h-3 md:w-4 md:h-4 transform group-hover:translate-x-1 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+            <a href="{{ route('explore') }}" class="group flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 transition">
+                <span class="text-xs font-bold text-slate-300 group-hover:text-white">View All</span>
+                <svg class="w-4 h-4 text-purple-500 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"></path></svg>
             </a>
         </div>
         

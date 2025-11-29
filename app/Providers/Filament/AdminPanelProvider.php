@@ -19,6 +19,9 @@ use Illuminate\Session\Middleware\StartSession;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
 use App\Filament\Pages\Auth\Login;
 
+// ✅ MediaLibrary Plugin v3 syntax မှာ direct load မရတော့ comment လုပ်ထားပါတယ်
+// use Filament\SpatieLaravelMediaLibraryPlugin;  
+
 class AdminPanelProvider extends PanelProvider
 {
     public function panel(Panel $panel): Panel
@@ -51,6 +54,11 @@ class AdminPanelProvider extends PanelProvider
                 SubstituteBindings::class,
                 DisableBladeIconComponents::class,
                 DispatchServingFilamentEvent::class,
+            ])
+            ->plugins([
+                // Filament v3 မှာ MediaLibrary plugin ကို direct load မရတော့ comment လုပ်ထားပါ
+                // MediaLibrary plugin ကို Forms/Tables/Fields တွေမှာ individually configure လုပ်ရမယ်
+                // SpatieLaravelMediaLibraryPlugin::make(),
             ])
             ->authMiddleware([
                 Authenticate::class,

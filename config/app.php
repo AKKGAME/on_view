@@ -123,4 +123,20 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
+'providers' => \Illuminate\Support\ServiceProvider::defaultProviders()->merge([
+        
+        /*
+         * Laravel's default service providers (these are usually autoloaded)
+         * We merge the existing list with our custom one below.
+         */
+
+        // ⚠️ သင့်ရှိရင်းစွဲ Service Providers များအားလုံး (e.g. App\Providers\AppServiceProvider::class) ကို ဒီနေရာမှာ ထည့်ပေးပါ
+        
+        // -----------------------------------------------------------
+        // Custom Provider (B2 Configuration Override)
+        App\Providers\B2ConfigServiceProvider::class, 
+        // -----------------------------------------------------------
+
+    ])->toArray(),
+
 ];
