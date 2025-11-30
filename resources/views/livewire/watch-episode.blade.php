@@ -1,9 +1,12 @@
-<div class="min-h-screen bg-[#05050A] text-white pb-20 relative overflow-x-hidden font-sans selection:bg-purple-500 selection:text-white">
+<div class="min-h-screen bg-[#05050A] text-white pb-24 md:pb-20 relative overflow-x-hidden font-sans selection:bg-purple-500 selection:text-white">
 
     {{-- Styles --}}
     <style>
         :root { --plyr-color-main: #a855f7; }
-        .plyr { border-radius: 12px; overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
+        .plyr { overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
+        /* Mobile: Remove radius, Desktop: Add radius */
+        @media (min-width: 768px) { .plyr { border-radius: 12px; } }
+        
         .plyr__control--overlaid { background: rgba(168, 85, 247, 0.8); }
         .plyr__control--overlaid:hover { background: #a855f7; }
         
@@ -31,8 +34,8 @@
         @endif
     </div>
 
-    {{-- 2. TOP NAVIGATION --}}
-    <div class="relative z-20 px-4 py-3 md:py-4 border-b border-white/5 bg-[#05050A]/80 backdrop-blur-md sticky top-0">
+    {{-- 2. TOP NAVIGATION (Hidden on Mobile) --}}
+    <div class="hidden md:block relative z-20 px-4 py-3 md:py-4 border-b border-white/5 bg-[#05050A]/80 backdrop-blur-md sticky top-0">
         <div class="max-w-[1800px] mx-auto flex items-center justify-between">
             <a href="{{ route('anime.show', $anime->slug) }}" wire:navigate 
                class="flex items-center gap-3 text-slate-400 hover:text-white transition group">
@@ -44,9 +47,6 @@
                     <span class="font-bold text-sm md:text-base leading-none line-clamp-1">{{ $anime->title }}</span>
                 </div>
             </a>
-            <div class="md:hidden">
-                <span class="px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 text-xs font-bold">EP {{ $episode->episode_number }}</span>
-            </div>
         </div>
     </div>
 
@@ -59,10 +59,10 @@
             <div class="flex-1 w-full min-w-0 lg:py-8 lg:pl-8 lg:pr-6">
                 
                 {{-- VIDEO PLAYER SECTION --}}
-                <div class="relative group w-full px-4 lg:px-0 mt-4 lg:mt-0">
+                <div class="sticky top-0 z-50 lg:static lg:z-auto group w-full px-0 lg:px-0 mt-0 lg:mt-0 bg-[#05050A] lg:bg-transparent">
                     <div class="hidden lg:block absolute -inset-1 bg-gradient-to-r from-purple-600 to-blue-600 rounded-2xl blur opacity-20 group-hover:opacity-30 transition duration-1000"></div>
                     
-                    <div class="relative w-full bg-black rounded-xl lg:rounded-2xl overflow-hidden shadow-2xl lg:ring-1 ring-white/10 z-10 aspect-video"
+                    <div class="relative w-full bg-black rounded-none md:rounded-xl lg:rounded-2xl overflow-hidden shadow-2xl lg:ring-1 ring-white/10 z-10 aspect-video"
                          x-data="{ loading: true }">
                         
                         @if($isUnlocked)
@@ -136,33 +136,13 @@
                 {{-- CONTROLS & TITLE --}}
                 <div class="mt-4 px-4 lg:px-0 flex flex-col md:flex-row gap-4 justify-between items-start">
                     <div class="w-full md:w-auto">
-                        <!-- <h1 class="text-lg lg:text-2xl font-bold text-white leading-snug line-clamp-2">{{ $episode->title }}</h1> -->
-                        <div class="flex items-center gap-2 mt-1.5 text-xs md:text-sm text-slate-400 font-medium">
-                            <span class="bg-white/5 px-2 py-0.5 rounded border border-white/5">EP {{ $episode->episode_number }}</span>
+                        <div class="flex items-center gap-2 text-xs md:text-sm text-slate-400 font-medium">
+                            <span class="bg-white/5 px-2 py-0.5 rounded border border-white/5 text-white">EP {{ $episode->episode_number }}</span>
                             <span class="w-1 h-1 bg-slate-600 rounded-full"></span>
                             <span>{{ $anime->title }}</span>
                         </div>
+                        <h1 class="text-lg lg:text-2xl font-bold text-white leading-snug line-clamp-2 mt-1">{{ $episode->title }}</h1>
                     </div>
-                    
-                    <!-- <div class="w-full md:w-auto flex items-center gap-2 bg-[#1a1a1a] p-1 rounded-xl border border-white/5">
-                        @php
-                            $prev = $playlist->where('episode_number', '<', $episode->episode_number)->last();
-                            $next = $playlist->where('episode_number', '>', $episode->episode_number)->first();
-                        @endphp
-
-                        <button @if($prev) wire:click="$dispatch('link-navigate', {href: '{{ route('anime.watch', $prev->id) }}'})" @else disabled @endif
-                           class="flex-1 md:flex-none px-4 py-2.5 rounded-lg hover:bg-white/10 text-white font-bold text-sm disabled:opacity-30 disabled:cursor-not-allowed transition flex items-center justify-center gap-2">
-                           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
-                           <span class="md:hidden lg:inline">Prev</span>
-                        </button>
-
-                        <div class="w-px h-5 bg-white/10"></div>
-
-                        <button @if($next) wire:click="$dispatch('link-navigate', {href: '{{ route('anime.watch', $next->id) }}'})" @else disabled @endif
-                           class="flex-1 md:flex-none px-6 py-2.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-bold text-sm disabled:opacity-30 disabled:bg-white/5 disabled:cursor-not-allowed transition flex items-center justify-center gap-2 shadow-lg shadow-purple-900/20">
-                           Next <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-                        </button>
-                    </div> -->
                 </div>
 
                 {{-- DESKTOP COMMENTS --}}
@@ -174,19 +154,37 @@
                </div>
             </div>
 
-            {{-- RIGHT COLUMN: PLAYLIST --}}
-            <div class="w-full lg:w-[380px] shrink-0 lg:py-8 lg:pr-8 flex flex-col">
+            {{-- RIGHT COLUMN: PLAYLIST & MOBILE TABS --}}
+            <div class="w-full lg:w-[380px] shrink-0 lg:py-8 lg:pr-8 flex flex-col" x-data="{ mobileTab: 'episodes' }">
                 
-                <div class="mt-6 lg:mt-0 px-4 lg:px-0">
+                <div class="mt-4 lg:mt-0 px-4 lg:px-0">
                     
-                    {{-- Playlist Header --}}
-                    <div class="p-4 bg-[#131318] border border-white/5 rounded-t-xl lg:rounded-t-2xl flex justify-between items-center">
+                    {{-- MOBILE TABS (Visible only on Mobile) --}}
+                    <div class="flex lg:hidden mb-4 bg-[#131318] p-1 rounded-xl border border-white/5">
+                        <button @click="mobileTab = 'episodes'"
+                                class="flex-1 py-2.5 text-xs font-bold rounded-lg transition relative"
+                                :class="mobileTab === 'episodes' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-400 hover:text-white'">
+                            Episodes
+                            <span x-show="mobileTab === 'episodes'" class="absolute top-2 right-3 w-1.5 h-1.5 bg-purple-500 rounded-full"></span>
+                        </button>
+                        <button @click="mobileTab = 'comments'"
+                                class="flex-1 py-2.5 text-xs font-bold rounded-lg transition relative"
+                                :class="mobileTab === 'comments' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-400 hover:text-white'">
+                            Comments
+                        </button>
+                    </div>
+                    
+                    {{-- DESKTOP HEADER (Visible only on Desktop) --}}
+                    <div class="hidden lg:flex p-4 bg-[#131318] border border-white/5 rounded-t-xl lg:rounded-t-2xl justify-between items-center">
                         <h3 class="font-bold text-white text-base lg:text-lg">Episodes</h3>
                         <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">{{ $playlist->count() }} EPS</span>
                     </div>
                     
-                    {{-- CONTENT BOX --}}
-                    <div class="bg-[#0f0f13] border-x border-b border-white/5 rounded-b-xl lg:rounded-b-2xl overflow-hidden">
+                    {{-- EPISODES CONTAINER --}}
+                    <div class="bg-[#0f0f13] border border-white/5 rounded-xl lg:rounded-b-2xl lg:rounded-t-none overflow-hidden"
+                         x-show="mobileTab === 'episodes'" 
+                         class="lg:block"> <!-- lg:block ensures it's always visible on desktop regardless of x-show -->
+
                         <div class="h-auto max-h-[400px] lg:h-[calc(100vh-180px)] overflow-y-auto p-3 custom-scrollbar lg:sticky lg:top-24" 
                              x-data x-init="$el.querySelector('.active-episode')?.scrollIntoView({ block: 'center', behavior: 'smooth' })">
                              
@@ -197,7 +195,6 @@
                                         $isActive = $ep->id === $episode->id; 
                                         $isBought = in_array($ep->id, \App\Models\Transaction::where('user_id', auth()->id())->where('type', 'purchase')->pluck('description')->map(fn($desc) => (int) str_replace('ep_', '', $desc))->toArray() ?? []);
                                         
-                                        // Mobile Button Colors
                                         $btnClass = "bg-[#1a1a20] text-slate-400 border border-white/5 hover:bg-white/10"; 
                                         if ($isActive) {
                                             $btnClass = "bg-purple-600 text-white border-purple-500 shadow-lg scale-105 z-10 active-episode";
@@ -219,7 +216,7 @@
                                 @endforeach
                             </div>
 
-                            {{-- DESKTOP: DETAILED LIST --}}
+                            {{-- DESKTOP: DETAILED LIST (Always hidden on mobile via lg:flex) --}}
                             <div class="hidden lg:flex flex-col gap-1">
                                 @foreach($playlist as $ep)
                                     @php 
@@ -254,12 +251,11 @@
                             </div>
                         </div>
                     </div>
-                </div>
 
-                {{-- MOBILE COMMENTS --}}
-                <div class="lg:hidden px-4 mt-8 border-t border-white/5 pt-6">
-                    <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2"><span class="text-purple-500">#</span> Comments</h3>
-                    @livewire('episode-comments', ['episodeId' => $episode->id])
+                    {{-- MOBILE COMMENTS (Tabbed Content) --}}
+                    <div class="lg:hidden mt-4" x-show="mobileTab === 'comments'" x-cloak>
+                        @livewire('episode-comments', ['episodeId' => $episode->id])
+                    </div>
                 </div>
             </div>
         </div>
@@ -274,6 +270,21 @@
             theme: '#a855f7',
             tooltips: { controls: true, seek: true },
             keyboard: { focused: true, global: true },
+        });
+
+        // Auto Landscape on Mobile Fullscreen
+        player.on('enterfullscreen', () => {
+            if (screen.orientation && screen.orientation.lock) {
+                screen.orientation.lock('landscape').catch((err) => {
+                    console.log('Landscape lock not supported or failed: ' + err);
+                });
+            }
+        });
+
+        player.on('exitfullscreen', () => {
+            if (screen.orientation && screen.orientation.unlock) {
+                screen.orientation.unlock();
+            }
         });
     });
 </script>
