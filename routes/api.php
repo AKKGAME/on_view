@@ -10,6 +10,9 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\AnimeController;
 use App\Http\Controllers\HistoryController;
 use App\Http\Controllers\RequestController;
+use App\Http\Controllers\TransactionController;
+use App\Http\Controllers\StreamController;
+
 
 
 // ✅ PUBLIC ROUTE: Get Genres (for Flutter Home Screen)
@@ -35,6 +38,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/home/latest', [AnimeController::class, 'getLatestAnimes']);
     Route::get('/anime/all', [AnimeController::class, 'getAllAnimes']);
     Route::get('/anime/{slug}', [AnimeController::class, 'showBySlug']);
+    Route::get('/stream/play/{id}', [StreamController::class, 'play']);
+    Route::post('/purchase/episode/{episode}', [TransactionController::class, 'purchaseEpisode']);
 
     // 2.3. History & Watchlist
     Route::post('/watch/episode/{episode_id}', [HistoryController::class, 'updateWatchHistory']);
