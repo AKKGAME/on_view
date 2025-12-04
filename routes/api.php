@@ -12,6 +12,7 @@ use App\Http\Controllers\HistoryController;
 use App\Http\Controllers\RequestController;
 use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\StreamController;
+use App\Http\Controllers\NotificationController;
 
 
 
@@ -53,4 +54,21 @@ Route::middleware('auth:sanctum')->group(function () {
     // 2.4. Requests
     Route::post('/topup/request', [RequestController::class, 'submitTopupRequest']);
     Route::post('/request/anime', [RequestController::class, 'submitAnimeRequest']);
+    
+    // Get all notifications (read/unread)
+    Route::get('/notifications', [NotificationController::class, 'index']);
+    
+    // Get unread count (for UI badge)
+    Route::get('/notifications/unread-count', function (Request $request) {
+        return response()->json(['count' => $request->user()->unreadNotifications->count()]);
+    });
+    
+    // Mark a single notification as read
+    Route::post('/notifications/read/{id}', [NotificationController::class, 'markAsRead']);
+    
+    // Delete a single notification
+    Route::delete('/notifications/{id}', [NotificationController::class, 'delete']);
+    
+    // Clear all notifications
+    Route::post('/notifications/clear-all', [NotificationController::class, 'clearAll']);
 });
