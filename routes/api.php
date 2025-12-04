@@ -13,7 +13,7 @@ use App\Http\Controllers\RequestController;
 use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\StreamController;
 use App\Http\Controllers\NotificationController;
-
+use App\Http\Controllers\BannerController;
 
 
 // ✅ PUBLIC ROUTE: Get Genres (for Flutter Home Screen)
@@ -71,4 +71,7 @@ Route::middleware('auth:sanctum')->group(function () {
     
     // Clear all notifications
     Route::post('/notifications/clear-all', [NotificationController::class, 'clearAll']);
+
+    // ✅ NEW PUBLIC ROUTE: Get Active Banners
+    Route::get('/banners', [BannerController::class, 'index']);
 });
