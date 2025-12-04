@@ -4,7 +4,6 @@ namespace App\Notifications;
 
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
 class SystemNotification extends Notification
@@ -24,9 +23,10 @@ class SystemNotification extends Notification
 
     public function via(object $notifiable): array
     {
-        return ['database']; // Database ထဲပဲ သိမ်းမယ်
+        return ['database']; // Notification များကို Database ထဲတွင်သာ သိမ်းဆည်းရန်
     }
 
+    // Database တွင် သိမ်းဆည်းမည့် JSON Format
     public function toArray(object $notifiable): array
     {
         return [
