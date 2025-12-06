@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Banner;
+use App\Models\Banner; // ✅ Must be present
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
+// NOTE: DB is not used here, but keeping it doesn't hurt.
+// use Illuminate\Support\Facades\DB; 
+use Carbon\Carbon; // ✅ Use Carbon explicitly if 'now()' causes issues on some servers
 
 class BannerController extends Controller
 {
@@ -15,8 +17,8 @@ class BannerController extends Controller
      */
     public function index()
     {
-        // လက်ရှိအချိန်ကို ရယူခြင်း
-        $now = now(); 
+        // 1. လက်ရှိအချိန်ကို Carbon Object အဖြစ် ရယူခြင်း
+        $now = Carbon::now(); // Using Carbon explicitly for clarity and robustness
 
         $banners = Banner::where('is_active', true)
             // 1. Start Date စစ်ဆေးခြင်း: null ဖြစ်ရင် ဒါမှမဟုတ် ယခုအချိန်ထက် စော/ညီနေရင်

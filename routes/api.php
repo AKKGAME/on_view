@@ -8,12 +8,13 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\UtilityController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\AnimeController;
+use App\Http\Controllers\ComicController;
 use App\Http\Controllers\HistoryController;
 use App\Http\Controllers\RequestController;
 use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\StreamController;
 use App\Http\Controllers\NotificationController;
-use App\Http\Controllers\BannerController;
+// use App\Http\Controllers\BannerController;
 
 
 // ✅ PUBLIC ROUTE: Get Genres (for Flutter Home Screen)
@@ -23,6 +24,8 @@ Route::get('/payment-methods', [UtilityController::class, 'getPaymentMethods']);
 // --- 1. PUBLIC AUTHENTICATION ROUTES ---
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
+
+Route::get('/banners', ['App\\Http\\Controllers\\BannerController', 'index']);
 
 
 // _________________________________________________
@@ -41,6 +44,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/anime/{slug}', [AnimeController::class, 'showBySlug']);
     Route::get('/stream/play/{id}', [StreamController::class, 'play']);
     Route::post('/purchase/episode/{episode}', [TransactionController::class, 'purchaseEpisode']);
+
+    // Read Chapter (Premium check ပါဝင်သည်)
+    Route::get('/comics/chapter/{id}/read', [ComicController::class, 'readChapter']);
+
+    // Buy Chapter
+    Route::post('/comics/chapter/{id}/purchase', [TransactionController::class, 'purchaseComicChapter']);
 
     // 2.3. History & Watchlist
     Route::post('/watch/episode/{episode_id}', [HistoryController::class, 'updateWatchHistory']);
@@ -71,7 +80,4 @@ Route::middleware('auth:sanctum')->group(function () {
     
     // Clear all notifications
     Route::post('/notifications/clear-all', [NotificationController::class, 'clearAll']);
-
-    // ✅ NEW PUBLIC ROUTE: Get Active Banners
-    Route::get('/banners', [BannerController::class, 'index']);
 });

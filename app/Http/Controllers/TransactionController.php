@@ -3,44 +3,34 @@
 namespace App\Http\Controllers;
 
 use App\Models\Episode;
+use App\Models\ComicChapter; // ✅ ComicChapter Model
 use App\Models\Transaction;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB; 
-use App\Notifications\SystemNotification; // ✅ Notification Class ကို Import လုပ်ပါ
+use App\Notifications\SystemNotification;
 
 class TransactionController extends Controller
 {
     /**
      * Episode တစ်ခုကို ဝယ်ယူ (Unlock) ရန်။
-     *
-     * POST /purchase/episode/{episode}
-     *
-     * @param  \App\Models\Episode  $episode
-     * @return \Illuminate\Http\JsonResponse
      */
     public function purchaseEpisode(Request $request, Episode $episode)
     {
-        // 1. Episode ကနေ Anime Title ကို Eager Loading ဖြင့် ရယူခြင်း
         $episode->load('season.anime'); 
         
         $user = $request->user();
         $cost = $episode->coin_price; 
 
-        // Title ယူခြင်း
         $animeTitle = $episode->season->anime->title ?? 'Unknown Anime';
         $episodeNumber = $episode->episode_number;
         $episodeId = $episode->id;
         
-        // 2. စစ်ဆေးမှုများ
-        if ($cost <= 0) {
-            $cost = 0; 
-        }
+        if ($cost <= 0) $cost = 0; 
 
         if ($user->coins < $cost) {
             return response()->json(['message' => 'Insufficient coins.'], 403);
         }
 
-        // 3. ဝယ်ယူပြီးသားလား ပြန်စစ်ခြင်း
         $epIdIdentifier = 'ep_' . $episodeId . ':'; 
 
         $alreadyUnlocked = Transaction::where('user_id', $user->id)
@@ -52,14 +42,11 @@ class TransactionController extends Controller
             return response()->json(['message' => 'This episode is already unlocked.'], 200);
         }
 
-        // 4. Database Transaction စတင်ခြင်း (ဒင်္ဂါးနုတ်ခြင်းနှင့် မှတ်တမ်းတင်ခြင်း)
         try {
             DB::beginTransaction();
 
-            // a. User ရဲ့ ဒင်္ဂါးနုတ်ယူခြင်း
             $user->decrement('coins', $cost);
 
-            // b. ဝယ်ယူမှုမှတ်တမ်း (Transaction) ဖန်တီးခြင်း
             $description = 'ep_' . $episodeId . ':' . $animeTitle . ' - Ep ' . $episodeNumber;
 
             Transaction::create([
@@ -69,29 +56,89 @@ class TransactionController extends Controller
                 'description' => $description,
             ]);
             
-            // 5. ✅ NEW: Notification ပို့ခြင်း (Transaction အောင်မြင်ပါက)
-            $user->notify(
-                new SystemNotification(
-                    "Episode Unlocked: {$animeTitle}", 
-                    "You successfully unlocked Ep {$episodeNumber} of {$animeTitle} by spending {$cost} coins.", 
-                    'success' 
-                )
-            );
+            // Notification ပို့ခြင်း
+            $user->notify(new SystemNotification(
+                "Episode Unlocked: {$animeTitle}", 
+                "You unlocked Ep {$episodeNumber}.", 
+                'success'
+            ));
 
             DB::commit();
 
             return response()->json([
                 'message' => 'Episode unlocked successfully!',
-                'new_coins' => $user->coins // update ဖြစ်ပြီးသား coins
+                'new_coins' => $user->coins
             ], 200);
 
         } catch (\Exception $e) {
             DB::rollBack();
+            return response()->json(['message' => 'Transaction failed.'], 500);
+        }
+    }
+
+    /**
+     * Comic Chapter တစ်ခုကို ဝယ်ယူ (Unlock) ရန်။
+     */
+    public function purchaseComicChapter(Request $request, $chapterId)
+    {
+        // 1. Data ရှာဖွေခြင်း
+        $chapter = ComicChapter::with('comic')->findOrFail($chapterId);
+        $user = $request->user();
+        $cost = $chapter->coin_price;
+
+        // 2. စစ်ဆေးမှုများ
+        if (!$chapter->is_premium || $cost <= 0) {
+            return response()->json(['message' => 'This chapter is free.'], 200);
+        }
+
+        // Identifier: "comic_chapter_{id}"
+        $identifier = 'comic_chapter_' . $chapter->id;
+        
+        $alreadyUnlocked = Transaction::where('user_id', $user->id)
+            ->where('description', $identifier)
+            ->exists();
+
+        if ($alreadyUnlocked) {
+            return response()->json(['message' => 'Already unlocked.'], 200);
+        }
+
+        if ($user->coins < $cost) {
+            return response()->json(['message' => 'Insufficient coins.'], 403);
+        }
+
+        // 3. Transaction စတင်ခြင်း
+        try {
+            DB::beginTransaction();
+
+            // a. Coins ဖြတ်တောက်
+            $user->decrement('coins', $cost);
+
+            // b. Record Transaction
+            Transaction::create([
+                'user_id' => $user->id,
+                'type' => 'purchase',
+                'amount' => $cost,
+                'description' => $identifier,
+            ]);
             
-            // 💡 Optional: Failed Transaction အတွက် Notification ပို့နိုင်သည်
-            // $user->notify(new SystemNotification('Purchase Failed', 'An error occurred during transaction.', 'error'));
-            
-            return response()->json(['message' => 'Transaction failed. Please try again later.'], 500);
+            // c. Notification ပို့ခြင်း (Optional but recommended)
+            $comicTitle = $chapter->comic->title ?? 'Comic';
+            $user->notify(new SystemNotification(
+                "Chapter Unlocked: {$comicTitle}", 
+                "You unlocked Chapter {$chapter->chapter_number}.", 
+                'success'
+            ));
+
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Chapter unlocked successfully!',
+                'new_coins' => $user->coins
+            ], 200);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['message' => 'Transaction failed.'], 500);
         }
     }
 }
