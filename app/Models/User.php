@@ -54,6 +54,7 @@ class User extends Authenticatable
             'phone_verified_at' => 'datetime',
             'password' => 'hashed',
             'last_check_in' => 'date',
+            'premium_expires_at' => 'datetime',
         ];
     }
     
@@ -82,5 +83,11 @@ class User extends Authenticatable
     public function comments()
     {
         return $this->hasMany(Comment::class);
+    }
+
+    // Helper: Premium ဟုတ်မဟုတ် စစ်ရန်
+    public function getIsPremiumAttribute()
+    {
+        return $this->premium_expires_at && $this->premium_expires_at->isFuture();
     }
 }
