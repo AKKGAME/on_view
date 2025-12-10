@@ -7,15 +7,19 @@ use Filament\Forms\Form;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables;
 use Filament\Tables\Table;
-use Filament\Forms\Get; // Dynamic Form Logic အတွက်
+use Filament\Forms\Get;
+use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Actions\Action; // Manual Sort အတွက်
+use Filament\Forms\Set;
+use Filament\Notifications\Notification;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
+// Str helper မလိုတော့ပါ (ID based directory သုံးမည်)
 
 class ChaptersRelationManager extends RelationManager
 {
     protected static string $relationship = 'chapters';
 
-    // Title on the relation tab
     protected static ?string $title = 'Chapters';
 
     public function form(Form $form): Form
@@ -30,7 +34,8 @@ class ChaptersRelationManager extends RelationManager
                             ->label('Chapter Number')
                             ->numeric()
                             ->required()
-                            ->default(fn () => $this->getOwnerRecord()->chapters()->max('chapter_number') + 1) // နောက်ဆုံး Chapter နံပါတ်ကို အလိုအလျောက်တိုးပေးသည်
+                            ->live() // Update directory dynamically if changed
+                            ->default(fn () => $this->getOwnerRecord()->chapters()->max('chapter_number') + 1)
                             ->hint('Used for sorting order'),
 
                         Forms\Components\TextInput::make('title')
@@ -46,8 +51,8 @@ class ChaptersRelationManager extends RelationManager
                     ->schema([
                         Forms\Components\Toggle::make('is_premium')
                             ->label('Premium Content?')
-                            ->onColor('warning') // Gold color like look
-                            ->live() // ✅ Toggle နှိပ်လိုက်တာနဲ့ State ကို update လုပ်ပြီး အောက်က Price ကို ပြ/မပြ လုပ်မည်
+                            ->onColor('warning')
+                            ->live()
                             ->default(false),
 
                         Forms\Components\TextInput::make('coin_price')
@@ -55,22 +60,55 @@ class ChaptersRelationManager extends RelationManager
                             ->numeric()
                             ->default(0)
                             ->prefixIcon('heroicon-o-currency-dollar')
-                            // ✅ is_premium က true ဖြစ်မှသာ ဒီ field ကို ပြမည်
                             ->hidden(fn (Get $get): bool => ! $get('is_premium'))
                             ->required(fn (Get $get): bool => $get('is_premium')),
                     ]),
 
-                // Section 3: Pages Upload (The most important part for Comics)
-                Forms\Components\Section::make('Manga / Comic Pages')
+                // Section 3: Pages Upload
+                Forms\Components\Section::make('Comic Pages')
                     ->schema([
-                        Forms\Components\FileUpload::make('pages')
+                        FileUpload::make('pages')
                             ->label('Upload Pages')
-                            ->helperText('You can upload multiple images. Drag and drop to reorder pages.')
-                            ->multiple() // ✅ ပုံအများကြီးတင်ခွင့်ပြုသည်
-                            ->reorderable() // ✅ ပုံအစီအစဉ်ကို ဆွဲရွှေ့ပြီး ပြင်နိုင်သည်
-                            ->directory('comics/chapters') // storage path
+                            ->helperText('ပုံများကို Select မှတ်ပြီး Upload တင်ပါ။ (001.jpg, 002.jpg)')
+                            
+                            // ✅ NEW: Manual Sort Button (Edit Mode)
+                            ->hintAction(
+                                Action::make('sort_images')
+                                    ->label('Sort by Filename')
+                                    ->icon('heroicon-m-arrow-path')
+                                    ->color('info')
+                                    ->action(function (Set $set, $state) {
+                                        if (is_array($state)) {
+                                            natsort($state); 
+                                            $set('pages', array_values($state)); // Re-index
+                                            
+                                            Notification::make()
+                                                ->title('Images sorted successfully!')
+                                                ->success()
+                                                ->send();
+                                        }
+                                    })
+                            )
+                            
+                            ->multiple() 
+                            ->reorderable() 
+                            ->appendFiles() 
+                            ->panelLayout('grid') 
+                            
+                            ->preserveFilenames() 
+                            
+                            // ✅ FIX: Directory by Comic ID & Chapter Number
+                            ->directory(function (RelationManager $livewire, Get $get) {
+                                $comicId = $livewire->getOwnerRecord()->id; 
+                                $chapterNum = $get('chapter_number') ?? 'temp';
+                                return "comics/{$comicId}/chapters/{$chapterNum}";
+                            }) 
+                            
                             ->image()
-                            ->imageEditor() // ပုံဖြတ်ညှပ်ကပ် လုပ်နိုင်သည်
+                            ->imageEditor() 
+                            ->imageResizeMode('cover') 
+                            ->imageCropAspectRatio(null) 
+                            ->imageResizeTargetWidth('850') 
                             ->columnSpanFull()
                             ->required(),
                     ]),
@@ -82,51 +120,40 @@ class ChaptersRelationManager extends RelationManager
         return $table
             ->recordTitleAttribute('title')
             ->columns([
-                // 1. Chapter Number
-                Tables\Columns\TextColumn::make('chapter_number')
-                    ->label('#')
-                    ->sortable()
-                    ->width(50),
-
-                // 2. Title
-                Tables\Columns\TextColumn::make('title')
-                    ->searchable()
-                    ->weight('bold'),
-
-                // 3. Page Count (ပုံဘယ်နှပုံပါလဲ ပြရန်)
+                Tables\Columns\TextColumn::make('chapter_number')->label('#')->sortable()->width(50),
+                Tables\Columns\TextColumn::make('title')->searchable()->weight('bold'),
                 Tables\Columns\TextColumn::make('pages')
                     ->label('Pages')
                     ->formatStateUsing(fn ($state) => is_array($state) ? count($state) . ' Pages' : '0 Pages')
-                    ->badge()
-                    ->color('gray'),
-
-                // 4. Premium Status
-                Tables\Columns\IconColumn::make('is_premium')
-                    ->label('Premium')
-                    ->boolean()
-                    ->trueIcon('heroicon-o-lock-closed')
-                    ->falseIcon('heroicon-o-lock-open')
-                    ->trueColor('warning')
-                    ->falseColor('success'),
-
-                // 5. Price
-                Tables\Columns\TextColumn::make('coin_price')
-                    ->label('Price')
-                    ->formatStateUsing(fn ($state) => $state > 0 ? $state . ' Coins' : 'Free')
-                    ->sortable(),
+                    ->badge()->color('gray'),
+                Tables\Columns\IconColumn::make('is_premium')->boolean()->trueIcon('heroicon-o-lock-closed')->falseIcon('heroicon-o-lock-open')->trueColor('warning')->falseColor('success'),
+                Tables\Columns\TextColumn::make('coin_price')->label('Price')->formatStateUsing(fn ($state) => $state > 0 ? $state . ' Coins' : 'Free')->sortable(),
             ])
-            ->defaultSort('chapter_number', 'desc') // အသစ်ဆုံး Chapter ကို အပေါ်ဆုံးမှာပြမည်
+            ->defaultSort('chapter_number', 'desc')
             ->filters([
-                // Premium Filter
-                Tables\Filters\Filter::make('is_premium')
-                    ->query(fn (Builder $query) => $query->where('is_premium', true))
-                    ->label('Premium Chapters Only'),
+                Tables\Filters\Filter::make('is_premium')->query(fn (Builder $query) => $query->where('is_premium', true))->label('Premium Chapters Only'),
             ])
             ->headerActions([
-                Tables\Actions\CreateAction::make(),
+                Tables\Actions\CreateAction::make()
+                    ->mutateFormDataUsing(function (array $data): array {
+                        // Auto-sort on Create
+                        if (isset($data['pages']) && is_array($data['pages'])) {
+                            natsort($data['pages']); 
+                            $data['pages'] = array_values($data['pages']);
+                        }
+                        return $data;
+                    }),
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
+                Tables\Actions\EditAction::make()
+                    ->mutateFormDataUsing(function (array $data): array {
+                        // Auto-sort on Edit Save
+                        if (isset($data['pages']) && is_array($data['pages'])) {
+                            natsort($data['pages']);
+                            $data['pages'] = array_values($data['pages']);
+                        }
+                        return $data;
+                    }),
                 Tables\Actions\DeleteAction::make(),
             ])
             ->bulkActions([

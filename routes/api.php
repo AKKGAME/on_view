@@ -3,7 +3,7 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
-// Controller များကို တစ်ခါတည်း သတ်မှတ်နိုင်ရန်
+// Controllers Import
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\UtilityController;
 use App\Http\Controllers\UserController;
@@ -14,70 +14,79 @@ use App\Http\Controllers\RequestController;
 use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\StreamController;
 use App\Http\Controllers\NotificationController;
-// use App\Http\Controllers\BannerController;
+use App\Http\Controllers\BannerController;
+use App\Http\Controllers\AppVersionController; // ✅ NEW: For Version Check
 
+/*
+|--------------------------------------------------------------------------
+| API Routes
+|--------------------------------------------------------------------------
+*/
 
-// ✅ PUBLIC ROUTE: Get Genres (for Flutter Home Screen)
+// ==========================================
+// 🌍 PUBLIC ROUTES (Login မဝင်ဘဲ သုံးလို့ရသည်)
+// ==========================================
+
+// 1. System & Utility
+Route::get('/app-version', [AppVersionController::class, 'checkVersion']); // ✅ App Update စစ်ရန်
 Route::get('/genres', [UtilityController::class, 'getGenres']);
 Route::get('/payment-methods', [UtilityController::class, 'getPaymentMethods']);
+Route::get('/banners', [BannerController::class, 'index']);
 
-// --- 1. PUBLIC AUTHENTICATION ROUTES ---
+// 2. Authentication
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 
-Route::get('/banners', ['App\\Http\\Controllers\\BannerController', 'index']);
+// 3. Search (Public Search)
+Route::get('/search', [UtilityController::class, 'search']); // ✅ Search Anime/Comic
+
+// 4. Comics (Public View)
+Route::get('/comics', [ComicController::class, 'index']);
+Route::get('/comics/{slug}', [ComicController::class, 'show']);
 
 
-// _________________________________________________
-// 🔐 AUTHENTICATED ROUTES (auth:sanctum လိုအပ်ပါသည်)
-// _________________________________________________
+// ==========================================
+// 🔐 AUTHENTICATED ROUTES (Login ဝင်မှရမည်)
+// ==========================================
 Route::middleware('auth:sanctum')->group(function () {
-    
-    // 2.1. User Profile & Data
-    Route::get('/user', [UserController::class, 'getProfile']);
-    Route::get('/user/library', [UserController::class, 'getLibrary']);
-    Route::get('/user/topup-history', [UserController::class, 'getTopupHistory']);
 
-    // 2.2. Anime Data & Details
+    // --- 1. Auth & Profile ---
+    Route::post('/logout', [AuthController::class, 'logout']); // ✅ Logout
+    Route::get('/user', [UserController::class, 'getProfile']);
+    Route::post('/user/update', [UserController::class, 'updateProfile']); // ✅ Update Name/Avatar
+    Route::get('/user/library', [UserController::class, 'getLibrary']); // Purchased items
+    
+    // --- 2. Transactions & Wallet ---
+    Route::get('/user/topup-history', [UserController::class, 'getTopupHistory']);
+    Route::get('/user/transactions', [UserController::class, 'getTransactions']); // Coin usage history
+    Route::post('/topup/request', [RequestController::class, 'submitTopupRequest']);
+
+    // --- 3. Anime Streaming ---
     Route::get('/home/latest', [AnimeController::class, 'getLatestAnimes']);
     Route::get('/anime/all', [AnimeController::class, 'getAllAnimes']);
     Route::get('/anime/{slug}', [AnimeController::class, 'showBySlug']);
-    Route::get('/stream/play/{id}', [StreamController::class, 'play']);
+    Route::get('/stream/play/{id}', [StreamController::class, 'play']); // Get Video URL
     Route::post('/purchase/episode/{episode}', [TransactionController::class, 'purchaseEpisode']);
+    Route::post('/request/anime', [RequestController::class, 'submitAnimeRequest']);
 
-    // Read Chapter (Premium check ပါဝင်သည်)
+    // --- 4. Comic Reading ---
     Route::get('/comics/chapter/{id}/read', [ComicController::class, 'readChapter']);
-
-    // Buy Chapter
     Route::post('/comics/chapter/{id}/purchase', [TransactionController::class, 'purchaseComicChapter']);
 
-    // 2.3. History & Watchlist
+    // --- 5. Watch History & Watchlist ---
     Route::post('/watch/episode/{episode_id}', [HistoryController::class, 'updateWatchHistory']);
+    Route::get('/user/watch-history', [HistoryController::class, 'getWatchHistory']);
+    Route::delete('/user/watch-history/{watchHistory}', [HistoryController::class, 'destroy']); // Delete single
+    Route::post('/user/watch-history/clear', [HistoryController::class, 'clearAll']); // ✅ Clear All History
+    
     Route::get('/user/watchlist', [HistoryController::class, 'getWatchlist']);
     Route::post('/watchlist/toggle/{anime}', [HistoryController::class, 'toggleWatchlist']);
-    Route::get('/user/watch-history', [HistoryController::class, 'getWatchHistory']);
-    
-    // Watch History ID ကို Route Model Binding သုံးပြီး ဖျက်ခြင်း
-    Route::delete('/user/watch-history/{watchHistory}', [HistoryController::class, 'destroy']); 
-    
-    // 2.4. Requests
-    Route::post('/topup/request', [RequestController::class, 'submitTopupRequest']);
-    Route::post('/request/anime', [RequestController::class, 'submitAnimeRequest']);
-    
-    // Get all notifications (read/unread)
+
+    // --- 6. Notifications ---
     Route::get('/notifications', [NotificationController::class, 'index']);
-    
-    // Get unread count (for UI badge)
-    Route::get('/notifications/unread-count', function (Request $request) {
-        return response()->json(['count' => $request->user()->unreadNotifications->count()]);
-    });
-    
-    // Mark a single notification as read
+    Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount']); // Simplified closure
     Route::post('/notifications/read/{id}', [NotificationController::class, 'markAsRead']);
-    
-    // Delete a single notification
     Route::delete('/notifications/{id}', [NotificationController::class, 'delete']);
-    
-    // Clear all notifications
     Route::post('/notifications/clear-all', [NotificationController::class, 'clearAll']);
+
 });

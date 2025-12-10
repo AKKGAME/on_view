@@ -84,4 +84,15 @@ class HistoryController extends Controller
         $watchHistory->delete();
         return response()->json(null, 204);
     }
+    
+    // Clear All Watch History for the user
+    public function clearAll(Request $request)
+    {
+        // User ID နဲ့ ကိုက်ညီတဲ့ History အားလုံးကို ဖျက်မည်
+        \App\Models\WatchHistory::where('user_id', $request->user()->id)->delete();
+
+        return response()->json([
+            'message' => 'Watch history cleared successfully.'
+        ], 200);
+    }
 }

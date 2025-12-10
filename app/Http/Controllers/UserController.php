@@ -59,4 +59,13 @@ class UserController extends Controller
             ->get();
         return response()->json($history);
     }
+    
+    // GET /user/transactions
+    public function getTransactions(Request $request)
+    {
+        // User ရဲ့ Transaction အားလုံး (အသစ်ဆုံး အရင်လာမည်)
+        return \App\Models\Transaction::where('user_id', $request->user()->id)
+            ->latest()
+            ->get();
+    }
 }
