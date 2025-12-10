@@ -91,4 +91,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/notifications/{id}', [NotificationController::class, 'delete']);
     Route::post('/notifications/clear-all', [NotificationController::class, 'clearAll']);
 
+    Route::get('/subscription/plans', [SubscriptionController::class, 'index']);
+    Route::post('/subscription/purchase', [SubscriptionController::class, 'purchase']);
+
 });
