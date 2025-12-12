@@ -112,4 +112,18 @@ class User extends Authenticatable
     {
         return $this->hasMany(Comment::class);
     }
+
+    // User ဝယ်ထားသော Movie များကို ပြန်ခေါ်ရန်
+public function purchasedMovies()
+{
+    return $this->belongsToMany(Movie::class, 'movie_user')
+                ->withTimestamps()
+                ->withPivot('price');
+}
+
+// Movie တစ်ခုကို ဝယ်ပြီးပြီလား စစ်ရန် Helper Function
+public function hasPurchasedMovie($movieId)
+{
+    return $this->purchasedMovies()->where('movie_id', $movieId)->exists();
+}
 }

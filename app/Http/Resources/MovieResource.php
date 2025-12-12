@@ -27,6 +27,7 @@ class MovieResource extends JsonResource
             // Monetization
             'is_premium' => (bool) $this->is_premium,
             'coin_price' => $this->coin_price,
+            'is_unlocked' => $isUnlocked,
             
             // Genres (List အနေနဲ့ ပြန်မယ်)
             'genres' => $this->genres->map(fn($g) => $g->name),

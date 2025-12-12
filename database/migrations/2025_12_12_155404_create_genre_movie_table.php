@@ -11,11 +11,14 @@ return new class extends Migration
      */
 public function up(): void
 {
-    Schema::create('genre_movie', function (Blueprint $table) {
-        $table->id();
-        $table->foreignId('movie_id')->constrained()->cascadeOnDelete();
-        $table->foreignId('genre_id')->constrained()->cascadeOnDelete();
-    });
+    // Table မရှိသေးမှသာ Create လုပ်မယ်လို့ စစ်လိုက်တာပါ
+    if (!Schema::hasTable('genre_movie')) {
+        Schema::create('genre_movie', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('movie_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('genre_id')->constrained()->cascadeOnDelete();
+        });
+    }
 }
 
     /**
