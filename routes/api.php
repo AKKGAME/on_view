@@ -15,7 +15,9 @@ use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\StreamController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\BannerController;
-use App\Http\Controllers\AppVersionController; // ✅ NEW: For Version Check
+use App\Http\Controllers\AppVersionController;
+use App\Http\Controllers\SubscriptionController;
+use App\Http\Controllers\Api\MovieController;
 
 /*
 |--------------------------------------------------------------------------
@@ -93,5 +95,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/subscription/plans', [SubscriptionController::class, 'index']);
     Route::post('/subscription/purchase', [SubscriptionController::class, 'purchase']);
+
+    // Movies API Routes
+    Route::get('/movies', [MovieController::class, 'index']); // All Movies
+    Route::get('/movies/search', [MovieController::class, 'search']); // Search
+    Route::get('/movies/{slug}', [MovieController::class, 'show']); // Detail
 
 });

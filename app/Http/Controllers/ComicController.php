@@ -4,30 +4,28 @@ namespace App\Http\Controllers;
 
 use App\Models\Comic;
 use App\Models\ComicChapter;
-use App\Models\Transaction; // Premium စစ်ဆေးရန်
+use App\Models\Transaction; 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 class ComicController extends Controller
 {
     // 1. GET /api/comics
-    // Comic ဇာတ်လမ်းတွဲများ အားလုံးကို ရယူခြင်း
     public function index()
     {
         $comics = Comic::latest()
-            ->select('id', 'title', 'slug', 'cover_image', 'is_finished', 'author') // လိုအပ်တာပဲ ယူမယ်
-            ->paginate(20); // Pagination သုံးထားသည်
+            ->select('id', 'title', 'slug', 'cover_image', 'is_finished', 'author')
+            ->paginate(20);
 
         return response()->json($comics);
     }
 
     // 2. GET /api/comics/{slug}
-    // Comic တစ်ခုချင်းစီ၏ အသေးစိတ်နှင့် Chapter များကို ရယူခြင်း
     public function show($slug)
     {
         $comic = Comic::where('slug', $slug)
             ->with(['chapters' => function ($query) {
-                $query->orderBy('chapter_number', 'desc'); // အသစ်ဆုံး Chapter အပေါ်တင်မယ်
+                $query->orderBy('chapter_number', 'desc');
             }])
             ->firstOrFail();
 
@@ -35,43 +33,59 @@ class ComicController extends Controller
     }
 
     // 3. GET /api/comics/chapter/{id}
-    // Chapter တစ်ခုကို ဖတ်ခြင်း (Pages ရယူခြင်း)
     public function readChapter(Request $request, $id)
     {
         $chapter = ComicChapter::findOrFail($id);
+        $user = $request->user();
 
-        // --- PREMIUM CHECK LOGIC ---
-        if ($chapter->is_premium) {
-            $user = $request->user();
-            
-            if (!$user) {
-                return response()->json(['message' => 'Unauthenticated.'], 401);
-            }
-
-            // ဝယ်ပြီးသားလား စစ်ဆေးခြင်း
-            // Transaction description format: "comic_chapter_{id}"
-            $hasUnlocked = Transaction::where('user_id', $user->id)
-                ->where('type', 'purchase')
-                ->where('description', 'comic_chapter_' . $chapter->id)
-                ->exists();
-
-            if (!$hasUnlocked) {
-                return response()->json([
-                    'message' => 'This chapter is premium. Please unlock it first.',
-                    'coin_price' => $chapter->coin_price,
-                    'is_locked' => true
-                ], 403);
-            }
+        // 🟢 1. VIP CHECK (အရေးကြီးဆုံး)
+        // User ရှိပြီး Premium သက်တမ်းကျန်သေးရင် ဝယ်စရာမလိုဘဲ တန်းပေးဖတ်မယ်
+        if ($user && $user->is_premium) {
+            return $this->successResponse($chapter);
         }
-        // ---------------------------
 
+        // 🟢 2. FREE CHAPTER CHECK
+        // Chapter က Premium မဟုတ်ရင် (Free ဆိုရင်) ပေးဖတ်မယ်
+        if (!$chapter->is_premium) {
+            return $this->successResponse($chapter);
+        }
+
+        // --- ဒီအောက်ရောက်ရင် Premium Chapter ဖြစ်လို့ Login ရှိမှရမယ် ---
+        if (!$user) {
+            return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+        }
+
+        // 🟢 3. PURCHASED CHECK
+        // User က ဒီ Chapter ကို Coin နဲ့ ဝယ်ထားပြီးသားလား စစ်မယ်
+        $hasUnlocked = Transaction::where('user_id', $user->id)
+            ->where('description', 'comic_chapter_' . $chapter->id) // Format ကိုက်ညီပါစေ
+            ->exists();
+
+        if ($hasUnlocked) {
+            return $this->successResponse($chapter);
+        }
+
+        // 🔴 4. LOCKED (ဘာမှမဝင်ရင် Lock ချမယ်)
         return response()->json([
-            'id' => $chapter->id,
-            'title' => $chapter->title,
-            'chapter_number' => $chapter->chapter_number,
-            // Model မှာ getFullPageUrlsAttribute ရေးထားပြီးဖြစ်လို့ ဒီမှာခေါ်သုံးရုံပါပဲ
-            'pages' => $chapter->full_page_urls, 
-            'is_locked' => false
+            'success' => false,
+            'error' => 'locked', // Flutter က ဒီ keyword ကိုစစ်ပြီး Dialog ပြမှာပါ
+            'message' => 'This chapter is premium. Please unlock it.',
+            'coin_price' => $chapter->coin_price,
+        ], 403);
+    }
+
+    // Helper Function: Code ထပ်မရေးရအောင် ခွဲထုတ်ထားခြင်း
+    private function successResponse($chapter)
+    {
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'id' => $chapter->id,
+                'title' => $chapter->title,
+                'chapter_number' => $chapter->chapter_number,
+                'pages' => $chapter->full_page_urls, // Accessor from Model
+                'is_locked' => false
+            ]
         ]);
     }
 }

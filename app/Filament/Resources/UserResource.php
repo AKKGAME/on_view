@@ -11,58 +11,74 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\Grid;
+use Illuminate\Support\Facades\Hash;
+use Filament\Tables\Filters\TernaryFilter;
+use Illuminate\Database\Eloquent\Builder;
+use Filament\Tables\Actions\Action;
+use Filament\Notifications\Notification;
 
 class UserResource extends Resource
 {
     protected static ?string $navigationGroup = 'System';
     protected static ?string $model = User::class;
-
-    // User နဲ့ပတ်သက်တဲ့ Icon (လူပုံ)
     protected static ?string $navigationIcon = 'heroicon-o-users';
+    protected static ?int $navigationSort = 1;
 
     public static function form(Form $form): Form
     {
         return $form
             ->schema([
-                Section::make('Account Information')
-                    ->description('Manage user login details')
+                Grid::make(3) // Column 3 ခုခွဲမယ်
                     ->schema([
-                        TextInput::make('name')
-                            ->required()
-                            ->maxLength(255),
+                        // Left Side (Account Info) - နေရာ ၂ ယူမယ်
+                        Section::make('Account Information')
+                            ->description('Login credentials & personal info')
+                            ->schema([
+                                TextInput::make('name')
+                                    ->required()
+                                    ->maxLength(255),
 
-                        TextInput::make('phone')
-                            ->label('Phone Number')
-                            ->tel()
-                            ->required()
-                            ->unique(ignoreRecord: true) // ဖုန်းနံပါတ် တူလို့မရ (Edit လုပ်နေတဲ့အချိန် ကိုယ့်နံပါတ်ကိုယ်တော့ ခွင့်ပြု)
-                            ->maxLength(255),
+                                TextInput::make('phone')
+                                    ->label('Phone Number')
+                                    ->tel()
+                                    ->required()
+                                    ->unique(ignoreRecord: true)
+                                    ->maxLength(255),
 
-                        TextInput::make('password')
-                            ->password()
-                            ->dehydrated(fn ($state) => filled($state)) // Password ဖြည့်မှ Database ထဲထည့်မယ်
-                            ->required(fn (string $context): bool => $context === 'create') // Create လုပ်ချိန်မှာ Required ဖြစ်မယ်
-                            ->maxLength(255),
-                    ])->columns(2),
+                                TextInput::make('password')
+                                    ->password()
+                                    // Password ရိုက်မှ Hash လုပ်ပြီးသိမ်းမယ်
+                                    ->dehydrateStateUsing(fn ($state) => Hash::make($state))
+                                    ->dehydrated(fn ($state) => filled($state))
+                                    ->required(fn (string $context): bool => $context === 'create'),
+                            ])->columnSpan(2),
 
-                Section::make('Gaming Stats')
-                    ->description('Manage coins, XP and ranking')
-                    ->schema([
-                        TextInput::make('coins')
-                            ->numeric()
-                            ->default(0)
-                            ->prefixIcon('heroicon-o-currency-dollar') // Coin Icon လေးပြမယ်
-                            ->label('Coins Balance'),
+                        // Right Side (Gaming & VIP Status) - နေရာ ၁ ယူမယ်
+                        Section::make('Status & Stats')
+                            ->schema([
+                                TextInput::make('coins')
+                                    ->numeric()
+                                    ->default(0)
+                                    ->prefixIcon('heroicon-o-currency-dollar')
+                                    ->label('Coins Balance'),
 
-                        TextInput::make('xp')
-                            ->numeric()
-                            ->default(0)
-                            ->label('XP (Experience)'),
+                                TextInput::make('xp')
+                                    ->numeric()
+                                    ->default(0)
+                                    ->label('XP Points'),
 
-                        TextInput::make('rank')
-                            ->default('Newbie')
-                            ->placeholder('e.g. Pro, Elite, Master'),
-                    ])->columns(3),
+                                TextInput::make('rank')
+                                    ->default('Newbie')
+                                    ->placeholder('e.g. Elite'),
+
+                                DateTimePicker::make('premium_expires_at')
+                                    ->label('Premium Expiry')
+                                    ->native(false)
+                                    ->suffixIcon('heroicon-o-calendar'),
+                            ])->columnSpan(1),
+                    ]),
             ]);
     }
 
@@ -71,40 +87,119 @@ class UserResource extends Resource
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('name')
-                    ->searchable(),
+                    ->searchable()
+                    ->weight('bold'),
 
                 Tables\Columns\TextColumn::make('phone')
                     ->searchable()
-                    ->label('Phone'),
+                    ->icon('heroicon-m-phone'),
 
-                // Coins ကို အရောင်နဲ့ ပမာဏ ပြမယ်
+                // Premium Status Check
+                Tables\Columns\TextColumn::make('premium_expires_at')
+                    ->label('Status')
+                    ->formatStateUsing(function ($state) {
+                        return $state && now()->lt($state) ? 'Premium' : 'Free';
+                    })
+                    ->badge()
+                    ->color(fn ($state) => $state && now()->lt($state) ? 'success' : 'gray'),
+
                 Tables\Columns\TextColumn::make('coins')
-                    ->numeric()
+                    ->numeric(decimalPlaces: 0)
                     ->sortable()
-                    ->money('mmk') // သို့မဟုတ် ရိုးရိုး number format ထားလို့ရပါတယ်
+                    ->prefix('Ks ')
                     ->color('warning'),
 
                 Tables\Columns\TextColumn::make('xp')
-                    ->numeric()
                     ->sortable()
-                    ->label('XP')
-                    ->badge(),
+                    ->label('XP'),
 
                 Tables\Columns\TextColumn::make('rank')
-                    ->searchable()
                     ->badge()
                     ->color('info'),
 
                 Tables\Columns\TextColumn::make('created_at')
-                    ->dateTime()
+                    ->dateTime('d M Y')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                //
+                // Premium User Filter
+                TernaryFilter::make('premium_user')
+                    ->label('User Type')
+                    ->placeholder('All Users')
+                    ->trueLabel('Premium Users')
+                    ->falseLabel('Free Users')
+                    ->queries(
+                        true: fn (Builder $query) => $query->where('premium_expires_at', '>', now()),
+                        false: fn (Builder $query) => $query->where('premium_expires_at', '<=', now())->orWhereNull('premium_expires_at'),
+                    ),
             ])
             ->actions([
+                // 1. Coin ဖြည့်ပေးမယ့် Action (Deposit)
+                Action::make('deposit')
+                    ->label('Deposit')
+                    ->icon('heroicon-o-plus-circle')
+                    ->color('success')
+                    ->iconButton()
+                    ->tooltip('Coin ဖြည့်မယ်')
+                    ->form([
+                        TextInput::make('amount')
+                            ->label('Amount to Deposit')
+                            ->numeric()
+                            ->required()
+                            ->minValue(1)
+                            ->prefix('Ks'),
+                    ])
+                    ->action(function (User $record, array $data) {
+                        $record->increment('coins', $data['amount']);
+                        
+                        Notification::make()
+                            ->title('Coins Deposited')
+                            ->success()
+                            ->body("Added {$data['amount']} coins to {$record->name}.")
+                            ->send();
+                    }),
+
+                // 2. Coin နှုတ်မယ့် Action (Withdraw)
+                Action::make('withdraw')
+                    ->label('Withdraw')
+                    ->icon('heroicon-o-minus-circle')
+                    ->color('danger')
+                    ->iconButton()
+                    ->tooltip('Coin နှုတ်မယ်')
+                    ->form([
+                        TextInput::make('amount')
+                            ->label('Amount to Withdraw')
+                            ->numeric()
+                            ->required()
+                            ->minValue(1)
+                            ->prefix('Ks'),
+                    ])
+                    ->action(function (User $record, array $data) {
+                        // လက်ရှိ Coin လောက်ငမလောက် စစ်မယ်
+                        if ($record->coins < $data['amount']) {
+                            Notification::make()
+                                ->title('Insufficient Balance')
+                                ->danger()
+                                ->body("User only has {$record->coins} coins.")
+                                ->send();
+                            return;
+                        }
+
+                        $record->decrement('coins', $data['amount']);
+
+                        Notification::make()
+                            ->title('Coins Withdrawn')
+                            ->success()
+                            ->body("Removed {$data['amount']} coins from {$record->name}.")
+                            ->send();
+                    }),
+
+                // 3. Edit Action
                 Tables\Actions\EditAction::make(),
+                
+                // 4. Delete Action
+                Tables\Actions\DeleteAction::make(),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([

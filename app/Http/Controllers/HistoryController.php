@@ -5,15 +5,13 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\WatchHistory;
 use App\Models\Anime;
-use App\Models\Episode; // Episode model ကို import လုပ်ပါ
+use App\Models\Episode;
 
 class HistoryController extends Controller
 {
     // POST /watch/episode/{episode_id}
     public function updateWatchHistory(Request $request, $episode_id)
     {
-        // Route Model Binding ကို Episode မှာ တိုက်ရိုက်မသုံးဘဲ episode_id ကိုယူပြီး with() နဲ့ရှာတာက
-        // လိုအပ်တဲ့ relationship တွေပါလာအောင် အစကအတိုင်းပဲ ရေးပါမယ်။
         $episode = Episode::with('season.anime')->findOrFail($episode_id);
         $anime_id = $episode->season->anime->id; 
 
@@ -35,7 +33,7 @@ class HistoryController extends Controller
         });
     }
 
-    // POST /watchlist/toggle/{anime} (Route Model Binding: Anime)
+    // POST /watchlist/toggle/{anime}
     public function toggleWatchlist(Request $request, Anime $anime)
     {
         $request->user()->watchlist()->toggle($anime->id);
@@ -51,32 +49,32 @@ class HistoryController extends Controller
     {
         $histories = WatchHistory::where('user_id', $request->user()->id)
             ->with(['episode', 'anime']) 
-            ->latest()
+            ->latest('updated_at') // latest() by updated_at is better for history
             ->take(50)
             ->get();
 
         return $histories->map(function ($item) {
-            // Null စစ်ဆေးခြင်းက အရင်ကုတ်အတိုင်း ထိန်းသိမ်းထားပါတယ်
+            
             if (!$item->episode || !$item->anime) {
                 return null;
             }
 
             return [
-                'id' => $item->id,
+                'id' => $item->id, // History Row ID
+                'episode_id' => $item->episode->id, // ✅ အရေးကြီးဆုံး: Episode ID ထည့်ပေးလိုက်ပါပြီ
                 'anime_title' => $item->anime->title,
                 'episode_number' => $item->episode->episode_number,
                 'episode_title' => $item->episode->title,
-                'cover_url' => $item->episode->thumbnail_url,
+                'cover_url' => $item->episode->thumbnail_url ?? $item->anime->cover_image, // Fallback image
                 'slug' => $item->anime->slug,
                 'watched_at' => $item->updated_at->diffForHumans(),
             ];
         })->filter()->values();
     }
     
-    // DELETE /user/watch-history/{watchHistory} (Route Model Binding: WatchHistory)
+    // DELETE /user/watch-history/{watchHistory}
     public function destroy(Request $request, WatchHistory $watchHistory)
     {
-        // Authorization: သက်ဆိုင်ရာ user မှသာ ဖျက်နိုင်ရန် စစ်ဆေးခြင်း
         if ($request->user()->id !== $watchHistory->user_id) {
             abort(403, 'You do not have permission to delete this watch history.');
         }
@@ -85,11 +83,10 @@ class HistoryController extends Controller
         return response()->json(null, 204);
     }
     
-    // Clear All Watch History for the user
+    // Clear All Watch History
     public function clearAll(Request $request)
     {
-        // User ID နဲ့ ကိုက်ညီတဲ့ History အားလုံးကို ဖျက်မည်
-        \App\Models\WatchHistory::where('user_id', $request->user()->id)->delete();
+        WatchHistory::where('user_id', $request->user()->id)->delete();
 
         return response()->json([
             'message' => 'Watch history cleared successfully.'

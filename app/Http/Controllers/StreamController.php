@@ -20,39 +20,61 @@ class StreamController extends Controller
         // 1. Episode Model ကိုရှာဖွေခြင်း
         $episode = Episode::findOrFail($id);
 
-        // ၂. User Login ဝင်ထားလား စစ်ဆေးခြင်း
+        // 2. User Login ဝင်ထားလား စစ်ဆေးခြင်း
         if (!Auth::check()) {
-            return response()->json(['message' => 'Please login first.'], 401);
+            return response()->json(['success' => false, 'message' => 'Please login first.'], 401);
         }
         
         $user = Auth::user();
 
-        // ၃. User ဝယ်ထားပြီးသားလား စစ်ဆေးခြင်း
-        // 💡 FIX: description format အသစ် (ep_ID:TITLE...) ကို စစ်ဆေးရန် LIKE ကို သုံးသည်
+        // 🟢 3. VIP CHECK (Subscription First)
+        // User က Premium Member ဖြစ်နေရင် ဝယ်ထားလား ဆက်မစစ်ဘဲ တန်းပေးကြည့်မယ်
+        if ($user->is_premium) {
+            return $this->grantAccess($episode);
+        }
+
+        // 🟢 4. FREE CONTENT CHECK
+        // Episode က Premium မဟုတ်ရင် (Free ဆိုရင်) ပေးကြည့်မယ်
+        if (!$episode->is_premium) {
+            return $this->grantAccess($episode);
+        }
+
+        // 🟢 5. PURCHASED CHECK (Individual Buy)
+        // User က ဒီ Episode ကို သီးသန့်ဝယ်ထားပြီးသားလား စစ်ဆေးခြင်း
+        // Format: "ep_ID:TITLE..."
         $epIdIdentifier = 'ep_' . $episode->id . ':'; 
         
         $hasUnlocked = Transaction::where('user_id', $user->id)
              ->where('type', 'purchase') 
-             // description က ep_ID: နဲ့ စတာကို စစ်ဆေးသည်
              ->where('description', 'like', $epIdIdentifier . '%') 
              ->exists();
 
-        // ၄. Premium ဖြစ်ပြီး မဝယ်ရသေးရင် ပိတ်ခြင်း
-        if ($episode->is_premium && !$hasUnlocked) {
-             // 💡 FIX: Message ကို ပိုရှင်းလင်းစေရန်
-             return response()->json(['message' => 'Premium Content: Please unlock this episode to stream.'], 403);
+        if ($hasUnlocked) {
+             return $this->grantAccess($episode);
         }
 
-        // ၅. Video File Path/URL ရှိမရှိ စစ်ဆေးခြင်း
-        if (empty($episode->video_url)) {
-            return response()->json(['message' => 'Video URL not configured.'], 404);
-        }
-
-        // ----------------------------------------------------
-        // ✅ Access ရရှိပါက၊ URL အပြည့်အစုံကို Client သို့ ပြန်ပေးခြင်း
-        // ----------------------------------------------------
-        
+        // 🔴 6. ACCESS DENIED (Lock)
+        // Premium ဖြစ်ပြီး၊ VIP လည်းမဟုတ်၊ ဝယ်လည်းမဝယ်ရသေးရင် ပိတ်မယ်
         return response()->json([
+            'success' => false,
+            'message' => 'Premium Content: Please unlock this episode to stream.',
+            'error' => 'locked', // Flutter ဘက်က Dialog ပြဖို့
+            'coin_price' => $episode->coin_price ?? 0 // ဈေးနှုန်းထည့်ပေးလိုက်သည်
+        ], 403);
+    }
+
+    /**
+     * Helper Function: Video URL ထုတ်ပေးခြင်း
+     */
+    private function grantAccess($episode)
+    {
+        // Video File Path/URL ရှိမရှိ စစ်ဆေးခြင်း
+        if (empty($episode->video_url)) {
+            return response()->json(['success' => false, 'message' => 'Video URL not configured.'], 404);
+        }
+
+        return response()->json([
+            'success' => true,
             'message' => 'Access granted.',
             'video_url' => $episode->video_url, 
             'episode_id' => $episode->id,

@@ -12,10 +12,13 @@ use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Table;
 use Filament\Tables;
 use Filament\Forms;
+use Filament\Actions\Action; // Header Action အတွက်
 use Filament\Forms\Get;
+use Filament\Forms\Set;
+use Filament\Forms\Components\Section;
+use Filament\Forms\Components\Grid;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Support\Str;
-// ✅ အသစ်ထပ်ထည့်ထားသော Import များ
 use Filament\Notifications\Notification;
 use Illuminate\Database\Eloquent\Collection;
 
@@ -39,50 +42,101 @@ class ManageAnimeEpisodes extends Page implements HasTable
 
     public function getTitle(): string|Htmlable
     {
-        return "Episodes: " . $this->season->title;
+        return "{$this->season->title} - Episodes";
+    }
+
+    // Header တွင် Back Button ထည့်ခြင်း
+    protected function getHeaderActions(): array
+    {
+        return [
+            Action::make('back_to_seasons')
+                ->label('Back to Seasons')
+                ->icon('heroicon-o-arrow-left')
+                ->color('gray')
+                ->url(AnimeResource::getUrl('seasons', ['record' => $this->record])),
+        ];
     }
 
     protected function getEpisodeFormSchema(): array
     {
         return [
-            Forms\Components\TextInput::make('episode_number')
-                ->required()
-                ->numeric(),
-                
-            Forms\Components\TextInput::make('title')
-                ->required(),
-                
-            Forms\Components\Textarea::make('overview')
-                ->rows(3)
-                ->columnSpanFull(),
-                
-            Forms\Components\TextInput::make('thumbnail_url')
-                ->label('Image URL'),
-                
-            Forms\Components\Textarea::make('video_url')
-                ->label('Video Source')
-                ->rows(3)
-                ->columnSpanFull(),
+            Grid::make(3)->schema([
+                // LEFT SIDE (Content Info)
+                Forms\Components\Group::make()->schema([
+                    Section::make('Episode Details')
+                        ->schema([
+                            Grid::make(2)->schema([
+                                Forms\Components\TextInput::make('episode_number')
+                                    ->required()
+                                    ->numeric()
+                                    ->prefix('#')
+                                    ->live(onBlur: true),
 
-            Forms\Components\Group::make()
-                ->schema([
-                    Forms\Components\Toggle::make('is_premium')
-                        ->label('Premium Episode?')
-                        ->onColor('success')
-                        ->offColor('gray')
-                        ->live(), 
+                                Forms\Components\TextInput::make('duration')
+                                    ->numeric()
+                                    ->suffix('mins'),
+                            ]),
 
-                    Forms\Components\TextInput::make('coin_price')
-                        ->numeric()
-                        ->default(0)
-                        ->prefix('Coins')
-                        ->hidden(fn (Get $get) => !$get('is_premium')), 
+                            Forms\Components\TextInput::make('title')
+                                ->required()
+                                ->live(onBlur: true)
+                                // Slug ကို Auto ဖြည့်ပေးမယ် (Anime Slug + Season + Ep)
+                                ->afterStateUpdated(function (Set $set, ?string $state, Get $get) {
+                                    $slug = Str::slug($this->record->title . '-s' . $this->season->season_number . '-ep' . $get('episode_number') . '-' . $state);
+                                    $set('slug', $slug);
+                                }),
 
-                    Forms\Components\TextInput::make('xp_reward')
-                        ->numeric()
-                        ->default(10)
-                        ->label('XP Reward'),
-                ])->columns(3)->columnSpanFull(),
+                            Forms\Components\Hidden::make('slug'), // Hidden Slug
+
+                            Forms\Components\Textarea::make('overview')
+                                ->rows(3)
+                                ->columnSpanFull(),
+                            
+                            Forms\Components\DatePicker::make('air_date')
+                                ->native(false)
+                                ->displayFormat('d M Y'),
+                        ]),
+
+                    Section::make('Media')
+                        ->schema([
+                            Forms\Components\TextInput::make('thumbnail_url')
+                                ->label('Thumbnail URL')
+                                ->prefixIcon('heroicon-o-photo')
+                                ->url(),
+
+                            Forms\Components\Textarea::make('video_url')
+                                ->label('Video Source')
+                                ->placeholder('Direct URL or Iframe')
+                                ->rows(3),
+                        ]),
+                ])->columnSpan(2),
+
+                // RIGHT SIDE (Monetization)
+                Forms\Components\Group::make()->schema([
+                    Section::make('Monetization')
+                        ->schema([
+                            Forms\Components\Toggle::make('is_premium')
+                                ->label('Premium Content')
+                                ->onColor('success')
+                                ->offColor('gray')
+                                ->live(),
+
+                            Forms\Components\TextInput::make('coin_price')
+                                ->label('Unlock Price')
+                                ->numeric()
+                                ->default(0)
+                                ->prefixIcon('heroicon-o-currency-dollar')
+                                ->hidden(fn (Get $get) => !$get('is_premium'))
+                                ->required(fn (Get $get) => $get('is_premium')),
+
+                            Forms\Components\TextInput::make('xp_reward')
+                                ->numeric()
+                                ->default(10)
+                                ->label('XP Reward')
+                                ->helperText('User gets this XP after watching.'),
+                        ]),
+                ])->columnSpan(1),
+            ]),
         ];
     }
 
@@ -93,84 +147,103 @@ class ManageAnimeEpisodes extends Page implements HasTable
                 Episode::query()->where('season_id', $this->season_id)
             )
             ->columns([
-                Tables\Columns\TextColumn::make('episode_number')
-                    ->label('Ep')
-                    ->sortable()
-                    ->badge()
-                    ->color('gray'),
-                
                 Tables\Columns\ImageColumn::make('thumbnail_url')
-                    ->label('Img')
-                    ->height(40)
-                    ->rounded(),
+                    ->label('Thumb')
+                    ->width(80)
+                    ->height(50)
+                    ->extraImgAttributes(['class' => 'object-cover rounded']),
+
+                Tables\Columns\TextInputColumn::make('episode_number')
+                    ->label('Ep #')
+                    ->type('number')
+                    ->sortable()
+                    ->alignCenter()
+                    ->width(80),
 
                 Tables\Columns\TextColumn::make('title')
                     ->searchable()
-                    ->limit(30),
+                    ->limit(30)
+                    ->description(fn (Episode $record) => Str::limit($record->overview, 40)),
 
-                Tables\Columns\IconColumn::make('is_premium')
-                    ->boolean()
-                    ->label('Premium'),
+                // Table ထဲမှာတင် အဖွင့်အပိတ်လုပ်လို့ရမယ်
+                Tables\Columns\ToggleColumn::make('is_premium')
+                    ->label('Premium')
+                    ->onColor('success')
+                    ->offColor('gray')
+                    ->alignCenter(),
                 
                 Tables\Columns\TextColumn::make('coin_price')
                     ->numeric()
-                    ->label('Price')
-                    ->sortable(),
+                    ->prefix('🪙 ')
+                    ->sortable()
+                    ->alignRight(),
+
+                Tables\Columns\TextColumn::make('created_at')
+                    ->date('d M')
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
+            ->defaultSort('episode_number', 'asc')
             ->headerActions([
                 Tables\Actions\CreateAction::make()
-                    ->label('Add Episode')
+                    ->label('New Episode')
+                    ->icon('heroicon-o-plus')
+                    ->slideOver() // ညာဘက်ကနေ Slide ဝင်လာမယ်
                     ->mutateFormDataUsing(function (array $data) {
                         $data['season_id'] = $this->season_id;
-                        $data['slug'] = Str::slug($this->record->title . '-s' . $this->season->season_number . '-ep' . $data['episode_number']);
+                        // Slug မပါလာရင် Auto ဖြည့်မယ်
+                        if (empty($data['slug'])) {
+                            $data['slug'] = Str::slug($this->record->title . '-s' . $this->season->season_number . '-ep' . $data['episode_number']);
+                        }
                         return $data;
                     })
                     ->form($this->getEpisodeFormSchema()), 
             ])
             ->actions([
                 Tables\Actions\EditAction::make()
+                    ->slideOver()
                     ->form($this->getEpisodeFormSchema()), 
                 
                 Tables\Actions\DeleteAction::make(),
             ])
-            // ✅ Bulk Actions (Select လုပ်ပြီး Coin သတ်မှတ်ရန်)
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
-                    
                     Tables\Actions\DeleteBulkAction::make(),
 
+                    // BULK SET PRICE
                     Tables\Actions\BulkAction::make('set_price')
-                        ->label('Set Coin Price')
+                        ->label('Update Prices')
                         ->icon('heroicon-o-currency-dollar')
                         ->color('warning')
-                        ->requiresConfirmation()
                         ->form([
                             Forms\Components\Toggle::make('is_premium')
-                                ->label('Mark as Premium?')
+                                ->label('Mark as Premium')
                                 ->default(true),
 
                             Forms\Components\TextInput::make('coin_price')
-                                ->label('Coin Amount')
+                                ->label('Coin Price')
                                 ->numeric()
                                 ->default(50)
                                 ->required(),
+                                
+                            Forms\Components\TextInput::make('xp_reward')
+                                ->label('XP Reward')
+                                ->numeric()
+                                ->default(10),
                         ])
                         ->action(function (Collection $records, array $data) {
-                            $records->each(function ($record) use ($data) {
-                                $record->update([
-                                    'is_premium' => $data['is_premium'],
-                                    'coin_price' => $data['coin_price'],
-                                ]);
-                            });
+                            $records->each->update([
+                                'is_premium' => $data['is_premium'],
+                                'coin_price' => $data['coin_price'],
+                                'xp_reward'  => $data['xp_reward'],
+                            ]);
 
                             Notification::make()
-                                ->title('Prices Updated Successfully')
+                                ->title('Episodes Updated Successfully')
                                 ->success()
                                 ->send();
                         })
                         ->deselectRecordsAfterCompletion(),
                 ]),
-            ])
-            ->defaultSort('episode_number', 'asc');
+            ]);
     }
 }
