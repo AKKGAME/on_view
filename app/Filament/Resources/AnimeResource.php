@@ -4,8 +4,8 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\AnimeResource\Pages;
 use App\Models\Anime;
-use App\Models\Setting;
 use App\Models\Genre;
+use App\Models\Setting;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Forms\Set;
@@ -20,8 +20,9 @@ use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\Toggle;
 use Filament\Forms\Components\Select;
-use Filament\Forms\Components\FileUpload; // Image Upload
 use Filament\Forms\Components\Grid;
+use Filament\Forms\Components\DatePicker;
+use Filament\Support\Enums\FontWeight;
 use Illuminate\Support\Facades\Http;
 
 class AnimeResource extends Resource
@@ -30,112 +31,72 @@ class AnimeResource extends Resource
     protected static ?string $model = Anime::class;
     protected static ?string $navigationIcon = 'heroicon-o-film';
     protected static ?int $navigationSort = 1;
+    protected static ?string $recordTitleAttribute = 'title';
 
     public static function form(Form $form): Form
     {
         return $form
             ->schema([
-                // 1. TMDB IMPORT (Top Full Width)
-                Section::make('Quick Import')
-                    ->description('Auto-fill details from TMDB Database')
+                // --- TOP SECTION: TMDB IMPORT ---
+                Section::make('TMDB Quick Import')
+                    ->description('Search and auto-fill details from The Movie Database.')
                     ->icon('heroicon-o-cloud-arrow-down')
                     ->collapsible()
                     ->schema([
                         Select::make('tmdb_id')
-                            ->label('Search TMDB (Title or ID)')
+                            ->label('Search Anime')
                             ->searchable()
                             ->preload()
-                            ->live()
-                            ->placeholder('Search anime...')
+                            ->live(debounce: 500)
+                            ->placeholder('Enter Anime Title or TMDB ID...')
+                            ->prefixIcon('heroicon-m-magnifying-glass')
                             ->getSearchResultsUsing(function (string $search) {
                                 $apiKey = Setting::where('key', 'tmdb_api_key')->value('value');
                                 if (!$apiKey || strlen($search) < 3) return [];
 
                                 $results = collect();
 
-                                // Search by ID
+                                // 1. Search by ID if numeric
                                 if (is_numeric($search)) {
                                     $idResponse = Http::withoutVerifying()->get("https://api.themoviedb.org/3/tv/{$search}", [
-                                        'api_key' => $apiKey,
-                                        'language' => 'en-US',
+                                        'api_key' => $apiKey, 'language' => 'en-US',
                                     ]);
-
                                     if ($idResponse->successful()) {
                                         $data = $idResponse->json();
                                         $year = substr($data['first_air_date'] ?? '', 0, 4);
-                                        $results->put($data['id'], "★ ID MATCH: " . $data['name'] . " ($year)");
+                                        $results->put($data['id'], "★ Found ID: " . $data['name'] . " ($year)");
                                     }
                                 }
 
-                                // Search by Name
+                                // 2. Search by Name
                                 $searchResponse = Http::withoutVerifying()->get('https://api.themoviedb.org/3/search/tv', [
-                                    'api_key' => $apiKey,
-                                    'query' => $search,
-                                    'language' => 'en-US',
+                                    'api_key' => $apiKey, 'query' => $search, 'language' => 'en-US',
                                 ]);
                                 
                                 if ($searchResponse->successful()) {
                                     foreach ($searchResponse->json('results') as $item) {
                                         if (!$results->has($item['id'])) {
                                             $year = substr($item['first_air_date'] ?? '', 0, 4);
-                                            $results->put($item['id'], $item['name'] . " ($year)");
+                                            $overview = Str::limit($item['overview'] ?? '', 50);
+                                            $results->put($item['id'], "{$item['name']} ($year) - {$overview}");
                                         }
                                     }
                                 }
-
                                 return $results;
                             })
                             ->afterStateUpdated(function (Set $set, ?string $state) {
                                 if (!$state) return;
+                                self::fillDataFromTmdb($set, $state);
+                            })
+                            ->helperText('Select a result to auto-fill the form below.'),
+                    ])
+                    ->columnSpanFull(),
 
-                                $apiKey = Setting::where('key', 'tmdb_api_key')->value('value');
-                                if (!$apiKey) return;
-
-                                $response = Http::withoutVerifying()->get("https://api.themoviedb.org/3/tv/{$state}", [
-                                    'api_key' => $apiKey,
-                                    'language' => 'en-US',
-                                ]);
-
-                                if ($response->successful()) {
-                                    $data = $response->json();
-
-                                    $set('title', $data['name']);
-                                    $set('slug', Str::slug($data['name']));
-                                    $set('description', $data['overview']);
-                                    $set('total_episodes', $data['number_of_episodes'] ?? 0);
-                                    $set('is_completed', in_array($data['status'], ['Ended', 'Canceled']));
-
-                                    if (!empty($data['poster_path'])) {
-                                        $set('thumbnail_url', 'https://image.tmdb.org/t/p/original' . $data['poster_path']);
-                                    }
-
-                                    if (!empty($data['backdrop_path'])) {
-                                        $set('cover_url', 'https://image.tmdb.org/t/p/original' . $data['backdrop_path']);
-                                    }
-
-                                    // Auto Create & Select Genres
-                                    if (!empty($data['genres'])) {
-                                        $genreIds = [];
-                                        foreach ($data['genres'] as $tmdbGenre) {
-                                            $genre = Genre::firstOrCreate(
-                                                ['name' => $tmdbGenre['name']],
-                                                ['slug' => Str::slug($tmdbGenre['name'])]
-                                            );
-                                            $genreIds[] = $genre->id;
-                                        }
-                                        $set('genres', $genreIds);
-                                    }
-
-                                    Notification::make()->title('Data Imported Successfully')->success()->send();
-                                }
-                            }),
-                    ]),
-
-                // 2. MAIN CONTENT (Split Layout)
-                Grid::make(3)->schema([
-                    // LEFT SIDE (Info & Media)
-                    Group::make()->schema([
-                        Section::make('Anime Details')
+                // --- MAIN CONTENT ---
+                Group::make()
+                    ->schema([
+                        Section::make('General Information')
+                            ->icon('heroicon-m-document-text')
                             ->schema([
                                 TextInput::make('title')
                                     ->required()
@@ -147,59 +108,80 @@ class AnimeResource extends Resource
                                     ->required()
                                     ->maxLength(255)
                                     ->unique(ignoreRecord: true)
-                                    ->readOnly(),
+                                    ->readOnly()
+                                    ->prefix(url('/anime/')),
 
                                 Textarea::make('description')
-                                    ->rows(4)
+                                    ->rows(5)
+                                    ->maxLength(65535)
                                     ->columnSpanFull(),
-                            ]),
 
-                        Section::make('Media Assets')
-                            ->description('Use direct image URLs (faster) or upload manually.')
-                            ->schema([
-                                TextInput::make('thumbnail_url')
-                                    ->label('Poster URL')
-                                    ->prefixIcon('heroicon-o-photo')
-                                    ->required(),
-
-                                TextInput::make('cover_url')
-                                    ->label('Cover URL')
-                                    ->prefixIcon('heroicon-o-photo'),
-                            ])->columns(2),
-                    ])->columnSpan(2),
-
-                    // RIGHT SIDE (Meta & Status)
-                    Group::make()->schema([
-                        Section::make('Classification')
-                            ->schema([
                                 Select::make('genres')
                                     ->relationship('genres', 'name')
                                     ->multiple()
                                     ->preload()
                                     ->searchable()
                                     ->createOptionForm([
-                                        TextInput::make('name')->required(),
+                                        TextInput::make('name')->required()->live()->afterStateUpdated(fn(Set $set, $state) => $set('slug', Str::slug($state))),
                                         TextInput::make('slug')->required(),
                                     ])
+                                    ->columnSpanFull(),
+                            ])->columns(2),
+
+                        Section::make('Media Assets')
+                            ->icon('heroicon-m-photo')
+                            ->schema([
+                                TextInput::make('thumbnail_url')
+                                    ->label('Poster Image URL')
+                                    ->prefixIcon('heroicon-m-link')
+                                    ->placeholder('https://...')
                                     ->required(),
 
-                                TextInput::make('total_episodes')
-                                    ->numeric()
-                                    ->default(0)
-                                    ->prefix('#'),
-                            ]),
+                                TextInput::make('cover_url')
+                                    ->label('Backdrop/Cover URL')
+                                    ->prefixIcon('heroicon-m-link')
+                                    ->placeholder('https://...'),
+                            ])->columns(1),
+                    ])
+                    ->columnSpan(['lg' => 2]),
 
-                        Section::make('Status')
+                // --- SIDEBAR (STATUS & META) ---
+                Group::make()
+                    ->schema([
+                        Section::make('Status & Meta')
+                            ->icon('heroicon-m-adjustments-horizontal')
                             ->schema([
                                 Toggle::make('is_completed')
-                                    ->label('Completed?')
+                                    ->label('Completed Status')
                                     ->onColor('success')
                                     ->offColor('danger')
+                                    ->onIcon('heroicon-m-check')
+                                    ->offIcon('heroicon-m-clock')
                                     ->inline(false),
+
+                                TextInput::make('total_episodes')
+                                    ->label('Total Episodes')
+                                    ->numeric()
+                                    ->default(0)
+                                    ->prefixIcon('heroicon-m-hashtag'),
+                                
+                                DatePicker::make('created_at')
+                                    ->label('Added Date')
+                                    ->native(false)
+                                    ->disabled(),
                             ]),
-                    ])->columnSpan(1),
-                ]),
-            ]);
+                        
+                        Section::make('Seasons Management')
+                            ->description('Manage seasons and episodes after creating the anime.')
+                            ->schema([
+                                Forms\Components\Placeholder::make('info')
+                                    ->label('Note')
+                                    ->content('You can sync seasons/episodes from the list view or manage them manually via the "Seasons" button.'),
+                            ]),
+                    ])
+                    ->columnSpan(['lg' => 1]),
+            ])
+            ->columns(3);
     }
 
     public static function table(Table $table): Table
@@ -209,16 +191,16 @@ class AnimeResource extends Resource
                 Tables\Columns\ImageColumn::make('thumbnail_url')
                     ->label('Poster')
                     ->square()
+                    ->extraImgAttributes(['class' => 'object-cover rounded-lg shadow-md']) // ပုံကို လှအောင်လုပ်ခြင်း
                     ->height(80)
-                    ->width(80)
-                    ->defaultImageUrl(url('/images/placeholder.png')),
+                    ->width(80),
 
                 Tables\Columns\TextColumn::make('title')
                     ->searchable()
-                    ->sortable()
-                    ->weight('bold')
-                    ->limit(40)
-                    ->wrap(),
+                    ->weight(FontWeight::Bold)
+                    ->description(fn (Anime $record) => Str::limit($record->description, 40))
+                    ->wrap()
+                    ->limit(50),
 
                 Tables\Columns\TextColumn::make('genres.name')
                     ->badge()
@@ -232,11 +214,17 @@ class AnimeResource extends Resource
                     ->badge()
                     ->color('info')
                     ->alignCenter(),
+                
+                Tables\Columns\TextColumn::make('total_episodes')
+                    ->label('Eps')
+                    ->numeric()
+                    ->sortable()
+                    ->color('gray'),
 
                 Tables\Columns\IconColumn::make('is_completed')
                     ->label('Status')
                     ->boolean()
-                    ->trueIcon('heroicon-o-check-circle')
+                    ->trueIcon('heroicon-s-check-circle')
                     ->falseIcon('heroicon-o-clock')
                     ->trueColor('success')
                     ->falseColor('warning')
@@ -250,7 +238,9 @@ class AnimeResource extends Resource
             ->defaultSort('created_at', 'desc')
             ->filters([
                 Tables\Filters\TernaryFilter::make('is_completed')
-                    ->label('Completion Status'),
+                    ->label('Status')
+                    ->trueLabel('Completed')
+                    ->falseLabel('Ongoing'),
                 
                 Tables\Filters\SelectFilter::make('genres')
                     ->relationship('genres', 'name')
@@ -258,99 +248,30 @@ class AnimeResource extends Resource
                     ->preload(),
             ])
             ->actions([
-                // MAIN ACTION: Manage Seasons
+                // 1. Manage Seasons Button
                 Tables\Actions\Action::make('manage_seasons')
-                    ->label('Seasons')
-                    ->icon('heroicon-o-rectangle-stack')
+                    ->label('Episodes')
+                    ->icon('heroicon-m-rectangle-stack')
                     ->color('info')
-                    ->button()
                     ->url(fn (Anime $record) => AnimeResource::getUrl('seasons', ['record' => $record])),
 
-                // DROPDOWN ACTIONS
                 Tables\Actions\ActionGroup::make([
                     Tables\Actions\EditAction::make(),
-
-                    // Smart Sync TMDB
-                    Tables\Actions\Action::make('fetch_seasons')
-                        ->label('Sync TMDB')
-                        ->icon('heroicon-o-cloud-arrow-down')
+                    
+                    // 2. Sync TMDB Button
+                    Tables\Actions\Action::make('sync_tmdb')
+                        ->label('Sync Seasons (TMDB)')
+                        ->icon('heroicon-m-arrow-path')
                         ->color('warning')
                         ->requiresConfirmation()
-                        ->modalHeading('Sync Seasons & Episodes')
-                        ->modalDescription('This will fetch all seasons and episodes from TMDB. Existing data will be updated.')
+                        ->modalHeading('Sync with TMDB')
+                        ->modalDescription('This will fetch/update all seasons and episodes from TMDB. This process might take a few seconds.')
                         ->action(function (Anime $record) {
-                            $apiKey = Setting::where('key', 'tmdb_api_key')->value('value');
-                            
-                            if (!$apiKey || !$record->tmdb_id) {
-                                Notification::make()->title('Missing API Key or ID')->danger()->send();
-                                return;
-                            }
-
-                            // Fetch Seasons
-                            $response = Http::withoutVerifying()->get("https://api.themoviedb.org/3/tv/{$record->tmdb_id}", [
-                                'api_key' => $apiKey,
-                                'language' => 'en-US',
-                            ]);
-
-                            if ($response->failed()) {
-                                Notification::make()->title('TMDB Connection Failed')->danger()->send();
-                                return;
-                            }
-
-                            $data = $response->json();
-                            $seasons = $data['seasons'] ?? [];
-
-                            foreach ($seasons as $tmdbSeason) {
-                                if ($tmdbSeason['season_number'] === 0) continue; // Skip Specials
-
-                                $season = $record->seasons()->updateOrCreate(
-                                    ['season_number' => $tmdbSeason['season_number']],
-                                    [
-                                        'title' => $tmdbSeason['name'],
-                                        'slug' => Str::slug($record->title . '-season-' . $tmdbSeason['season_number']),
-                                    ]
-                                );
-
-                                // Fetch Episodes for this Season
-                                $seasonRes = Http::withoutVerifying()->get("https://api.themoviedb.org/3/tv/{$record->tmdb_id}/season/{$tmdbSeason['season_number']}", [
-                                    'api_key' => $apiKey,
-                                    'language' => 'en-US',
-                                ]);
-
-                                if ($seasonRes->successful()) {
-                                    $episodes = $seasonRes->json('episodes') ?? [];
-                                    
-                                    foreach ($episodes as $ep) {
-                                        $season->episodes()->updateOrCreate(
-                                            ['episode_number' => $ep['episode_number']],
-                                            [
-                                                'title' => $ep['name'],
-                                                'slug' => Str::slug($record->title . '-s' . $tmdbSeason['season_number'] . '-ep' . $ep['episode_number']),
-                                                'overview' => $ep['overview'],
-                                                'thumbnail_url' => $ep['still_path'] 
-                                                    ? 'https://image.tmdb.org/t/p/original' . $ep['still_path'] 
-                                                    : null,
-                                                
-                                                // ✅ FIX: Added runtime & air_date
-                                                'duration' => $ep['runtime'] ?? null,
-                                                'air_date' => $ep['air_date'] ?? null,
-
-                                                'video_url' => '#', 
-                                                'is_premium' => false, 
-                                                'coin_price' => 0,
-                                            ]
-                                        );
-                                    }
-                                }
-                            }
-
-                            Notification::make()->title('Sync Completed!')->success()->send();
+                            self::syncSeasonsFromTmdb($record);
                         }),
 
                     Tables\Actions\DeleteAction::make(),
-                ])
-                ->icon('heroicon-m-ellipsis-vertical')
-                ->tooltip('More Options'),
+                ]),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
@@ -370,10 +291,124 @@ class AnimeResource extends Resource
             'index' => Pages\ListAnimes::route('/'),
             'create' => Pages\CreateAnime::route('/create'),
             'edit' => Pages\EditAnime::route('/{record}/edit'),
-            
-            // Custom Pages for Season/Episode Management
             'seasons' => Pages\ManageAnimeSeasons::route('/{record}/seasons'),
             'episodes' => Pages\ManageAnimeEpisodes::route('/{record}/seasons/{season_id}/episodes'),
         ];
+    }
+
+    // --- HELPER FUNCTIONS (Logic ခွဲထုတ်ခြင်း) ---
+
+    // 1. Fill Form Data
+    protected static function fillDataFromTmdb(Set $set, string $tmdbId)
+    {
+        $apiKey = Setting::where('key', 'tmdb_api_key')->value('value');
+        if (!$apiKey) {
+            Notification::make()->title('API Key Missing')->danger()->send();
+            return;
+        }
+
+        $response = Http::withoutVerifying()->get("https://api.themoviedb.org/3/tv/{$tmdbId}", [
+            'api_key' => $apiKey, 'language' => 'en-US',
+        ]);
+
+        if ($response->successful()) {
+            $data = $response->json();
+
+            $set('title', $data['name']);
+            $set('slug', Str::slug($data['name']));
+            $set('description', $data['overview']);
+            $set('total_episodes', $data['number_of_episodes'] ?? 0);
+            $set('is_completed', in_array($data['status'], ['Ended', 'Canceled']));
+
+            if (!empty($data['poster_path'])) {
+                $set('thumbnail_url', 'https://image.tmdb.org/t/p/original' . $data['poster_path']);
+            }
+            if (!empty($data['backdrop_path'])) {
+                $set('cover_url', 'https://image.tmdb.org/t/p/original' . $data['backdrop_path']);
+            }
+
+            // Genres
+            if (!empty($data['genres'])) {
+                $genreIds = [];
+                foreach ($data['genres'] as $tmdbGenre) {
+                    $genre = Genre::firstOrCreate(
+                        ['name' => $tmdbGenre['name']],
+                        ['slug' => Str::slug($tmdbGenre['name'])]
+                    );
+                    $genreIds[] = $genre->id;
+                }
+                $set('genres', $genreIds);
+            }
+
+            Notification::make()->title('Data Imported from TMDB')->success()->send();
+        }
+    }
+
+    // 2. Sync Seasons Logic
+    protected static function syncSeasonsFromTmdb(Anime $record)
+    {
+        $apiKey = Setting::where('key', 'tmdb_api_key')->value('value');
+        
+        if (!$apiKey || !$record->tmdb_id) {
+            Notification::make()->title('Missing API Key or TMDB ID')->danger()->send();
+            return;
+        }
+
+        $response = Http::withoutVerifying()->get("https://api.themoviedb.org/3/tv/{$record->tmdb_id}", [
+            'api_key' => $apiKey, 'language' => 'en-US',
+        ]);
+
+        if ($response->failed()) {
+            Notification::make()->title('Connection Failed')->body('Could not connect to TMDB.')->danger()->send();
+            return;
+        }
+
+        $data = $response->json();
+        $seasons = $data['seasons'] ?? [];
+        $count = 0;
+
+        foreach ($seasons as $tmdbSeason) {
+            if ($tmdbSeason['season_number'] === 0) continue; // Skip Specials if needed
+
+            $season = $record->seasons()->updateOrCreate(
+                ['season_number' => $tmdbSeason['season_number']],
+                [
+                    'title' => $tmdbSeason['name'],
+                    'slug' => Str::slug($record->title . '-season-' . $tmdbSeason['season_number']),
+                ]
+            );
+
+            // Fetch Episodes
+            $seasonRes = Http::withoutVerifying()->get("https://api.themoviedb.org/3/tv/{$record->tmdb_id}/season/{$tmdbSeason['season_number']}", [
+                'api_key' => $apiKey, 'language' => 'en-US',
+            ]);
+
+            if ($seasonRes->successful()) {
+                $episodes = $seasonRes->json('episodes') ?? [];
+                foreach ($episodes as $ep) {
+                    $season->episodes()->updateOrCreate(
+                        ['episode_number' => $ep['episode_number']],
+                        [
+                            'title' => $ep['name'],
+                            'slug' => Str::slug($record->title . '-s' . $tmdbSeason['season_number'] . '-ep' . $ep['episode_number']),
+                            'overview' => $ep['overview'],
+                            'thumbnail_url' => $ep['still_path'] ? 'https://image.tmdb.org/t/p/original' . $ep['still_path'] : null,
+                            'duration' => $ep['runtime'] ?? null,
+                            'air_date' => $ep['air_date'] ?? null,
+                            'video_url' => '#', 
+                            'is_premium' => false, 
+                            'coin_price' => 0,
+                        ]
+                    );
+                }
+                $count++;
+            }
+        }
+
+        Notification::make()
+            ->title('Sync Completed')
+            ->body("Successfully synced {$count} seasons and their episodes.")
+            ->success()
+            ->send();
     }
 }

@@ -17,6 +17,7 @@ class SystemSettingResource extends Resource
 {
     protected static ?string $navigationGroup = 'System';
     protected static ?string $model = SystemSetting::class;
+    protected static ?int $navigationSort = 6;
 
     protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
 

@@ -59,7 +59,7 @@ class SubscriptionController extends Controller
             // History မှတ်
             Transaction::create([
                 'user_id' => $user->id,
-                'amount' => -$plan->coin_price, 
+                'amount' => $plan->coin_price, 
                 'type' => 'subscription',
                 'description' => "Bought Premium: {$plan->name}",
             ]);

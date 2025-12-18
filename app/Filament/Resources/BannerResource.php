@@ -28,6 +28,7 @@ class BannerResource extends Resource
     // Side Bar Icon
     protected static ?string $navigationIcon = 'heroicon-o-presentation-chart-line';
     protected static ?string $navigationGroup = 'System';
+    protected static ?int $navigationSort = 3;
 
 
     public static function form(Form $form): Form

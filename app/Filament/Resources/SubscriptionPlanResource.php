@@ -11,68 +11,83 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Grid;
+use Filament\Forms\Components\Group;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\Toggle;
+use Filament\Support\Enums\FontWeight;
 
 class SubscriptionPlanResource extends Resource
 {
-    // Model သတ်မှတ်ခြင်း
     protected static ?string $model = SubscriptionPlan::class;
-
-    // Sidebar Icon (Heroicons)
     protected static ?string $navigationIcon = 'heroicon-o-ticket';
-
-    // Sidebar Group Name (Optional)
     protected static ?string $navigationGroup = 'Finance';
-
-    // Label on Sidebar
     protected static ?string $navigationLabel = 'VIP Plans';
+    protected static ?int $navigationSort = 2;
 
     public static function form(Form $form): Form
     {
         return $form
             ->schema([
-                Section::make('Plan Details')
-                    ->description('Create premium subscription plans for users.')
-                    ->schema([
-                        // 1. Plan Name
-                        Forms\Components\TextInput::make('name')
-                            ->label('Plan Name')
-                            ->placeholder('e.g., 1 Month VIP')
-                            ->required()
-                            ->maxLength(255)
-                            ->columnSpanFull(),
+                Grid::make(3)->schema([
+                    // --- LEFT COLUMN (General Info) ---
+                    Group::make()->schema([
+                        Section::make('Plan Details')
+                            ->description('Define the name and benefits of the VIP plan.')
+                            ->icon('heroicon-m-identification')
+                            ->schema([
+                                TextInput::make('name')
+                                    ->label('Plan Name')
+                                    ->placeholder('e.g. Monthly VIP Pass')
+                                    ->required()
+                                    ->maxLength(255)
+                                    ->live(onBlur: true),
 
-                        Grid::make(2)->schema([
-                            // 2. Price in Coins
-                            Forms\Components\TextInput::make('coin_price')
-                                ->label('Price (Coins)')
-                                ->numeric() // ဂဏန်းပဲရိုက်လို့ရမယ်
-                                ->prefixIcon('heroicon-o-currency-dollar')
-                                ->required()
-                                ->minValue(0),
+                                Textarea::make('description')
+                                    ->label('Benefits / Description')
+                                    ->placeholder("• Unlimited Anime\n• No Ads\n• 4K Quality")
+                                    ->rows(5)
+                                    ->helperText('List the benefits using bullet points for better readability.')
+                                    ->columnSpanFull(),
+                            ]),
+                    ])->columnSpan(2),
 
-                            // 3. Duration in Days
-                            Forms\Components\TextInput::make('duration_days')
-                                ->label('Duration (Days)')
-                                ->numeric()
-                                ->suffix('Days')
-                                ->required()
-                                ->minValue(1),
-                        ]),
+                    // --- RIGHT COLUMN (Pricing & Settings) ---
+                    Group::make()->schema([
+                        Section::make('Pricing & Validity')
+                            ->icon('heroicon-m-currency-dollar')
+                            ->schema([
+                                TextInput::make('coin_price')
+                                    ->label('Price')
+                                    ->numeric()
+                                    ->prefix('🪙') // Coin Icon
+                                    ->suffix('Coins')
+                                    ->required()
+                                    ->minValue(0)
+                                    ->step(100), // ၁၀၀ ခြားစီ တိုးမယ်
 
-                        // 4. Description
-                        Forms\Components\Textarea::make('description')
-                            ->label('Description / Benefits')
-                            ->placeholder('e.g., Unlimited access to all anime and comics.')
-                            ->rows(3)
-                            ->columnSpanFull(),
+                                TextInput::make('duration_days')
+                                    ->label('Duration')
+                                    ->numeric()
+                                    ->prefixIcon('heroicon-m-calendar-days')
+                                    ->suffix('Days')
+                                    ->required()
+                                    ->minValue(1),
+                            ]),
 
-                        // 5. Active Switch
-                        Forms\Components\Toggle::make('is_active')
-                            ->label('Active Plan')
-                            ->helperText('If disabled, users cannot buy this plan.')
-                            ->default(true)
-                            ->onColor('success'),
-                    ])
+                        Section::make('Status')
+                            ->schema([
+                                Toggle::make('is_active')
+                                    ->label('Active for Purchase')
+                                    ->helperText('Enable to let users buy this plan.')
+                                    ->default(true)
+                                    ->onColor('success')
+                                    ->offColor('danger')
+                                    ->onIcon('heroicon-m-check')
+                                    ->offIcon('heroicon-m-x-mark'),
+                            ]),
+                    ])->columnSpan(1),
+                ]),
             ]);
     }
 
@@ -80,42 +95,55 @@ class SubscriptionPlanResource extends Resource
     {
         return $table
             ->columns([
-                // Plan Name
+                // Name & Description combined
                 Tables\Columns\TextColumn::make('name')
                     ->searchable()
-                    ->sortable()
-                    ->weight('bold'),
+                    ->weight(FontWeight::Bold)
+                    ->icon('heroicon-o-ticket')
+                    ->description(fn (SubscriptionPlan $record) => \Illuminate\Support\Str::limit($record->description, 40)),
 
-                // Coin Price
+                // Price with Coin Icon styling
                 Tables\Columns\TextColumn::make('coin_price')
                     ->label('Price')
-                    ->suffix(' Coins')
+                    ->formatStateUsing(fn ($state) => number_format($state)) // 1,000 ပုံစံပြမယ်
+                    ->icon('heroicon-m-currency-dollar')
+                    ->iconPosition('before')
+                    ->color('warning') // Gold Color
                     ->sortable()
-                    ->color('warning'), // ရွှေရောင်စာလုံးပြမယ်
+                    ->suffix(' Coins')
+                    ->weight(FontWeight::Bold),
 
-                // Duration
+                // Duration Badge
                 Tables\Columns\TextColumn::make('duration_days')
                     ->label('Duration')
-                    ->suffix(' Days')
+                    ->badge()
+                    ->color(fn (string $state): string => match (true) {
+                        $state >= 365 => 'success', // 1 Year = Green
+                        $state >= 30 => 'info',     // 1 Month = Blue
+                        default => 'gray',          // Others = Gray
+                    })
+                    ->formatStateUsing(fn ($state) => "$state Days")
                     ->sortable(),
 
-                // Active Status (Toggle Column - Table ပေါ်ကနေ တန်းပိတ်လို့ရအောင်)
+                // Toggle Active Status
                 Tables\Columns\ToggleColumn::make('is_active')
-                    ->label('Active'),
+                    ->label('Status')
+                    ->onColor('success')
+                    ->offColor('danger'),
 
                 Tables\Columns\TextColumn::make('created_at')
-                    ->dateTime()
+                    ->dateTime('d M Y')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                // Filter: Active ဖြစ်တာပဲ ကြည့်ချင်ရင်
-                Tables\Filters\Filter::make('active')
-                    ->query(fn ($query) => $query->where('is_active', true))
-                    ->label('Active Plans Only'),
+                Tables\Filters\TernaryFilter::make('is_active')
+                    ->label('Status')
+                    ->trueLabel('Active Plans')
+                    ->falseLabel('Inactive Plans'),
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
+                Tables\Actions\EditAction::make()->slideOver(), // Slide Over နဲ့ ပွင့်မယ်
                 Tables\Actions\DeleteAction::make(),
             ])
             ->bulkActions([
@@ -123,7 +151,7 @@ class SubscriptionPlanResource extends Resource
                     Tables\Actions\DeleteBulkAction::make(),
                 ]),
             ])
-            ->defaultSort('coin_price', 'asc'); // ဈေးအနည်းဆုံးကနေ စီပြမယ်
+            ->defaultSort('coin_price', 'asc');
     }
 
     public static function getRelations(): array

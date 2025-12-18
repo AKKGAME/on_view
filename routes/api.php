@@ -30,7 +30,7 @@ use App\Http\Controllers\Api\MovieController;
 // ==========================================
 
 // 1. System & Utility
-Route::get('/app-version', [AppVersionController::class, 'checkVersion']); // ✅ App Update စစ်ရန်
+Route::get('/app-version', [AppVersionController::class, 'checkVersion']);
 Route::get('/genres', [UtilityController::class, 'getGenres']);
 Route::get('/payment-methods', [UtilityController::class, 'getPaymentMethods']);
 Route::get('/banners', [BannerController::class, 'index']);
@@ -40,11 +40,23 @@ Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 
 // 3. Search (Public Search)
-Route::get('/search', [UtilityController::class, 'search']); // ✅ Search Anime/Comic
+Route::get('/search', [UtilityController::class, 'search']);
 
 // 4. Comics (Public View)
 Route::get('/comics', [ComicController::class, 'index']);
 Route::get('/comics/{slug}', [ComicController::class, 'show']);
+
+// 5. Movies (✅ ဒီ ၃ ကြောင်းကို Public မှာ ပြောင်းထားလိုက်ပါ)
+Route::get('/movies', [MovieController::class, 'index']); // All Movies
+Route::get('/movies/search', [MovieController::class, 'search']); // Search
+Route::get('/movies/{slug}', [MovieController::class, 'show']); // Detail
+
+// 6. Anime (✅ ဒီနေရာမှာ ထပ်ဖြည့်ပါ)
+Route::get('/home/latest', [AnimeController::class, 'getLatestAnimes']); // Home Screen အတွက်
+Route::get('/home/ongoing', [AnimeController::class, 'getOngoingAnimes']); // Ongoing အတွက်
+Route::get('/anime/all', [AnimeController::class, 'getAllAnimes']); // All Anime Screen အတွက်
+Route::get('/anime/search', [AnimeController::class, 'search']); // ✅ Search အတွက် (Controller မှာ function ထည့်ပြီးမှ)
+Route::get('/anime/{slug}', [AnimeController::class, 'showBySlug']); // Detail Screen အတွက်
 
 
 // ==========================================
@@ -53,21 +65,18 @@ Route::get('/comics/{slug}', [ComicController::class, 'show']);
 Route::middleware('auth:sanctum')->group(function () {
 
     // --- 1. Auth & Profile ---
-    Route::post('/logout', [AuthController::class, 'logout']); // ✅ Logout
+    Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/user', [UserController::class, 'getProfile']);
-    Route::post('/user/update', [UserController::class, 'updateProfile']); // ✅ Update Name/Avatar
-    Route::get('/user/library', [UserController::class, 'getLibrary']); // Purchased items
+    Route::post('/user/update', [UserController::class, 'updateProfile']);
+    Route::get('/user/library', [UserController::class, 'getLibrary']);
     
     // --- 2. Transactions & Wallet ---
     Route::get('/user/topup-history', [UserController::class, 'getTopupHistory']);
-    Route::get('/user/transactions', [UserController::class, 'getTransactions']); // Coin usage history
+    Route::get('/user/transactions', [UserController::class, 'getTransactions']);
     Route::post('/topup/request', [RequestController::class, 'submitTopupRequest']);
 
     // --- 3. Anime Streaming ---
-    Route::get('/home/latest', [AnimeController::class, 'getLatestAnimes']);
-    Route::get('/anime/all', [AnimeController::class, 'getAllAnimes']);
-    Route::get('/anime/{slug}', [AnimeController::class, 'showBySlug']);
-    Route::get('/stream/play/{id}', [StreamController::class, 'play']); // Get Video URL
+    Route::get('/stream/play/{id}', [StreamController::class, 'play']);
     Route::post('/purchase/episode/{episode}', [TransactionController::class, 'purchaseEpisode']);
     Route::post('/request/anime', [RequestController::class, 'submitAnimeRequest']);
 
@@ -78,8 +87,8 @@ Route::middleware('auth:sanctum')->group(function () {
     // --- 5. Watch History & Watchlist ---
     Route::post('/watch/episode/{episode_id}', [HistoryController::class, 'updateWatchHistory']);
     Route::get('/user/watch-history', [HistoryController::class, 'getWatchHistory']);
-    Route::delete('/user/watch-history/{watchHistory}', [HistoryController::class, 'destroy']); // Delete single
-    Route::post('/user/watch-history/clear', [HistoryController::class, 'clearAll']); // ✅ Clear All History
+    Route::delete('/user/watch-history/{watchHistory}', [HistoryController::class, 'destroy']);
+    Route::post('/user/watch-history/clear', [HistoryController::class, 'clearAll']);
     
     Route::get('/user/watchlist', [HistoryController::class, 'getWatchlist']);
     Route::post('/watchlist/toggle/{anime}', [HistoryController::class, 'toggleWatchlist']);
@@ -88,17 +97,16 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/notifications', [NotificationController::class, 'index']);
     Route::get('/notifications/unread-count', function (Request $request) {
         return response()->json(['count' => $request->user()->unreadNotifications->count()]);
-    }); // Simplified closure
+    });
     Route::post('/notifications/read/{id}', [NotificationController::class, 'markAsRead']);
     Route::delete('/notifications/{id}', [NotificationController::class, 'delete']);
     Route::post('/notifications/clear-all', [NotificationController::class, 'clearAll']);
 
+    // --- 7. Subscription ---
     Route::get('/subscription/plans', [SubscriptionController::class, 'index']);
     Route::post('/subscription/purchase', [SubscriptionController::class, 'purchase']);
 
-    // Movies API Routes
-    Route::get('/movies', [MovieController::class, 'index']); // All Movies
-    Route::get('/movies/search', [MovieController::class, 'search']); // Search
-    Route::get('/movies/{slug}', [MovieController::class, 'show']); // Detail
+    // --- 8. Movie Purchase (✅ ဝယ်ယူခြင်းကိုတော့ ဒီအောက်မှာပဲထားပါ) ---
+    Route::post('/purchase/movie/{id}', [MovieController::class, 'purchase']);
 
 });

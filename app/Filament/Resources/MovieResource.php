@@ -22,7 +22,7 @@ use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\Toggle;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\DatePicker;
-use Filament\Forms\Components\Grid;
+use Filament\Support\Enums\FontWeight;
 use Illuminate\Support\Facades\Http;
 
 class MovieResource extends Resource
@@ -31,14 +31,15 @@ class MovieResource extends Resource
     protected static ?string $model = Movie::class;
     protected static ?string $navigationIcon = 'heroicon-o-film';
     protected static ?int $navigationSort = 2;
+    protected static ?string $recordTitleAttribute = 'title';
 
     public static function form(Form $form): Form
     {
         return $form
             ->schema([
-                // 1. TMDB IMPORT (Movies API)
-                Section::make('Quick Import (Movies)')
-                    ->description('Search from TMDB Movies Database')
+                // --- TOP: TMDB IMPORT ---
+                Section::make('TMDB Quick Import')
+                    ->description('Search and auto-fill details from TMDB Movies Database.')
                     ->icon('heroicon-o-cloud-arrow-down')
                     ->collapsible()
                     ->schema([
@@ -46,158 +47,141 @@ class MovieResource extends Resource
                             ->label('Search Movie')
                             ->searchable()
                             ->preload()
-                            ->live()
-                            ->dehydrated(false)
-                            ->placeholder('Type movie title...')
+                            ->live(debounce: 500)
+                            ->dehydrated(false) // DB ထဲ မထည့်ဘူး Form မှာပဲသုံးမယ်
+                            ->placeholder('Enter Movie Title or ID...')
+                            ->prefixIcon('heroicon-m-magnifying-glass')
                             ->getSearchResultsUsing(function (string $search) {
                                 $apiKey = Setting::where('key', 'tmdb_api_key')->value('value');
                                 if (!$apiKey || strlen($search) < 3) return [];
 
                                 $results = collect();
 
-                                // Search Movie Endpoint
+                                // 1. Search API
                                 $response = Http::withoutVerifying()->get('https://api.themoviedb.org/3/search/movie', [
-                                    'api_key' => $apiKey,
-                                    'query' => $search,
-                                    'language' => 'en-US',
+                                    'api_key' => $apiKey, 'query' => $search, 'language' => 'en-US',
                                 ]);
                                 
                                 if ($response->successful()) {
                                     foreach ($response->json('results') as $item) {
                                         $year = substr($item['release_date'] ?? '', 0, 4);
-                                        $results->put($item['id'], $item['title'] . " ($year)");
+                                        $overview = Str::limit($item['overview'] ?? '', 50);
+                                        $results->put($item['id'], "{$item['title']} ($year) - {$overview}");
                                     }
                                 }
                                 return $results;
                             })
                             ->afterStateUpdated(function (Set $set, ?string $state) {
-                                if (!$state) return;
-
-                                $apiKey = Setting::where('key', 'tmdb_api_key')->value('value');
-                                if (!$apiKey) return;
-
-                                // Get Movie Details
-                                $response = Http::withoutVerifying()->get("https://api.themoviedb.org/3/movie/{$state}", [
-                                    'api_key' => $apiKey,
-                                    'language' => 'en-US',
-                                ]);
-
-                                if ($response->successful()) {
-                                    $data = $response->json();
-
-                                    $set('tmdb_id', $data['id']);
-                                    $set('title', $data['title']);
-                                    $set('slug', Str::slug($data['title']));
-                                    $set('description', $data['overview']);
-                                    $set('duration', $data['runtime']);
-                                    $set('release_date', $data['release_date']);
-
-                                    if (!empty($data['poster_path'])) {
-                                        $set('thumbnail_url', 'https://image.tmdb.org/t/p/original' . $data['poster_path']);
-                                    }
-
-                                    if (!empty($data['backdrop_path'])) {
-                                        $set('cover_url', 'https://image.tmdb.org/t/p/original' . $data['backdrop_path']);
-                                    }
-
-                                    // Auto Genres
-                                    if (!empty($data['genres'])) {
-                                        $genreIds = [];
-                                        foreach ($data['genres'] as $tmdbGenre) {
-                                            $genre = Genre::firstOrCreate(
-                                                ['name' => $tmdbGenre['name']],
-                                                ['slug' => Str::slug($tmdbGenre['name'])]
-                                            );
-                                            $genreIds[] = $genre->id;
-                                        }
-                                        $set('genres', $genreIds);
-                                    }
-
-                                    Notification::make()->title('Movie Data Imported!')->success()->send();
-                                }
-                            }),
+                                if ($state) self::fillMovieDataFromTmdb($set, $state);
+                            })
+                            ->helperText('Select a movie to auto-fill the details below.'),
                     ]),
 
-                // 2. MAIN FORM
-                Grid::make(3)->schema([
-                    // LEFT COLUMN (2/3)
+                // --- MAIN CONTENT ---
+                Forms\Components\Grid::make(3)->schema([
+                    // LEFT COLUMN (Main Info) - Takes 2 Columns
                     Group::make()->schema([
-                        Section::make('Movie Details')
+                        Section::make('Movie Information')
+                            ->icon('heroicon-m-film')
                             ->schema([
                                 TextInput::make('title')
                                     ->required()
+                                    ->maxLength(255)
                                     ->live(onBlur: true)
                                     ->afterStateUpdated(fn (Set $set, ?string $state) => $set('slug', Str::slug($state))),
 
                                 TextInput::make('slug')
                                     ->required()
+                                    ->maxLength(255)
                                     ->unique(ignoreRecord: true)
-                                    ->readOnly(),
+                                    ->readOnly()
+                                    ->prefix(url('/movie/')),
 
                                 Textarea::make('description')
-                                    ->rows(4)
+                                    ->rows(11)
                                     ->columnSpanFull(),
-                                
-                                // Video URL (Movies have direct link)
-                                Textarea::make('video_url')
-                                    ->label('Video Source')
-                                    ->placeholder('Direct URL or Iframe Embed Code')
-                                    ->rows(3)
-                                    ->columnSpanFull()
-                                    ->required(),
-                            ]),
 
-                        Section::make('Media Assets')
+                                Textarea::make('video_url')
+                                    ->label('Video Source URL')
+                                    ->placeholder('https://example.com/movie.mp4 or Embed Code')
+                                    ->rows(3)
+                                    ->hintIcon('heroicon-m-video-camera')
+                                    ->required()
+                                    ->columnSpanFull()
+                                    ->helperText('Direct link (MP4/M3U8) or iframe embed code.'),
+                            ])->columns(2),
+
+                        Section::make('Visual Assets')
+                            ->icon('heroicon-m-photo')
                             ->schema([
                                 TextInput::make('thumbnail_url')
                                     ->label('Poster URL')
-                                    ->prefixIcon('heroicon-o-photo')
+                                    ->prefixIcon('heroicon-m-link')
+                                    ->placeholder('https://...')
                                     ->required(),
 
                                 TextInput::make('cover_url')
                                     ->label('Backdrop URL')
-                                    ->prefixIcon('heroicon-o-photo'),
+                                    ->prefixIcon('heroicon-m-link')
+                                    ->placeholder('https://...'),
                             ])->columns(2),
-                    ])->columnSpan(2),
+                    ])->columnSpan(['lg' => 2]),
 
-                    // RIGHT COLUMN (1/3)
+                    // RIGHT COLUMN (Meta & Settings) - Takes 1 Column
                     Group::make()->schema([
                         Section::make('Classification')
+                            ->icon('heroicon-m-tag')
                             ->schema([
                                 Select::make('genres')
                                     ->relationship('genres', 'name')
                                     ->multiple()
                                     ->preload()
                                     ->searchable()
+                                    ->createOptionForm([
+                                        TextInput::make('name')->required(),
+                                        TextInput::make('slug')->required(),
+                                    ])
                                     ->required(),
 
                                 TextInput::make('duration')
-                                    ->label('Runtime (mins)')
-                                    ->numeric(),
+                                    ->label('Runtime')
+                                    ->numeric()
+                                    ->suffix('mins')
+                                    ->prefixIcon('heroicon-m-clock'),
 
                                 DatePicker::make('release_date')
-                                    ->native(false),
+                                    ->label('Release Date')
+                                    ->native(false)
+                                    ->suffixIcon('heroicon-m-calendar'),
                             ]),
 
                         Section::make('Monetization')
+                            ->icon('heroicon-m-currency-dollar')
                             ->schema([
                                 Toggle::make('is_premium')
-                                    ->label('Premium Content')
-                                    ->onColor('success')
+                                    ->label('Premium Only')
+                                    ->onColor('warning')
+                                    ->offColor('gray')
+                                    ->onIcon('heroicon-s-star')
+                                    ->offIcon('heroicon-o-lock-open')
                                     ->live(),
 
-                                TextInput::make('coin_price')
-                                    ->label('Unlock Price')
-                                    ->numeric()
-                                    ->default(0)
-                                    ->prefixIcon('heroicon-o-currency-dollar')
-                                    ->hidden(fn (Get $get) => !$get('is_premium'))
-                                    ->required(fn (Get $get) => $get('is_premium')),
+                                Group::make()->schema([
+                                    TextInput::make('coin_price')
+                                        ->label('Unlock Price')
+                                        ->numeric()
+                                        ->default(0)
+                                        ->prefix('🪙')
+                                        ->required(),
+                                ])
+                                ->visible(fn (Get $get) => $get('is_premium')), // Premium ဖြစ်မှပေါ်မယ်
 
                                 TextInput::make('xp_reward')
+                                    ->label('XP Reward')
                                     ->numeric()
                                     ->default(10)
-                                    ->label('XP Reward'),
+                                    ->prefix('★')
+                                    ->helperText('XP given after watching.'),
                             ]),
 
                         Section::make('Visibility')
@@ -205,9 +189,10 @@ class MovieResource extends Resource
                                 Toggle::make('is_published')
                                     ->label('Published')
                                     ->default(true)
-                                    ->onColor('primary'),
+                                    ->onColor('success')
+                                    ->helperText('Visible to users app-wide.'),
                             ]),
-                    ])->columnSpan(1),
+                    ])->columnSpan(['lg' => 1]),
                 ]),
             ]);
     }
@@ -219,31 +204,41 @@ class MovieResource extends Resource
                 Tables\Columns\ImageColumn::make('thumbnail_url')
                     ->label('Poster')
                     ->width(60)
-                    ->height(90),
+                    ->height(90)
+                    ->extraImgAttributes(['class' => 'object-cover rounded shadow']),
 
                 Tables\Columns\TextColumn::make('title')
                     ->searchable()
                     ->sortable()
-                    ->weight('bold')
+                    ->weight(FontWeight::Bold)
                     ->limit(30)
-                    ->description(fn (Movie $record) => $record->release_date ? $record->release_date->format('Y') : '-'),
+                    ->description(fn (Movie $record) => $record->release_date ? $record->release_date->format('Y') : '-')
+                    ->wrap(),
 
                 Tables\Columns\TextColumn::make('genres.name')
                     ->badge()
                     ->color('primary')
-                    ->limitList(2),
+                    ->limitList(2)
+                    ->separator(','),
 
-                Tables\Columns\ToggleColumn::make('is_premium')
-                    ->label('Premium'),
+                Tables\Columns\IconColumn::make('is_premium')
+                    ->label('Type')
+                    ->boolean()
+                    ->trueIcon('heroicon-s-star')
+                    ->falseIcon('heroicon-o-check-circle')
+                    ->trueColor('warning') // Premium is Gold/Orange
+                    ->falseColor('gray')
+                    ->alignCenter(),
 
                 Tables\Columns\TextColumn::make('coin_price')
-                    ->numeric()
-                    ->prefix('🪙 ')
-                    ->sortable(),
+                    ->label('Price')
+                    ->money('mmk') // Or just numeric if prefer Coin icon
+                    ->color('success')
+                    ->sortable()
+                    ->formatStateUsing(fn ($state) => $state > 0 ? number_format($state) . ' Coins' : 'Free'),
 
-                Tables\Columns\IconColumn::make('is_published')
-                    ->label('Visible')
-                    ->boolean(),
+                Tables\Columns\ToggleColumn::make('is_published')
+                    ->label('Visible'),
 
                 Tables\Columns\TextColumn::make('created_at')
                     ->date()
@@ -251,14 +246,21 @@ class MovieResource extends Resource
             ])
             ->defaultSort('created_at', 'desc')
             ->filters([
-                Tables\Filters\TernaryFilter::make('is_premium'),
+                Tables\Filters\TernaryFilter::make('is_premium')
+                    ->label('Content Type')
+                    ->trueLabel('Premium Only')
+                    ->falseLabel('Free Content'),
+                    
                 Tables\Filters\SelectFilter::make('genres')
                     ->relationship('genres', 'name')
-                    ->multiple(),
+                    ->multiple()
+                    ->preload(),
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+                Tables\Actions\ActionGroup::make([
+                    Tables\Actions\EditAction::make(),
+                    Tables\Actions\DeleteAction::make(),
+                ]),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
@@ -281,5 +283,51 @@ class MovieResource extends Resource
             'create' => Pages\CreateMovie::route('/create'),
             'edit' => Pages\EditMovie::route('/{record}/edit'),
         ];
+    }
+
+    // --- HELPER FUNCTION ---
+    protected static function fillMovieDataFromTmdb(Set $set, string $tmdbId)
+    {
+        $apiKey = Setting::where('key', 'tmdb_api_key')->value('value');
+        if (!$apiKey) {
+            Notification::make()->title('API Key Missing')->danger()->send();
+            return;
+        }
+
+        $response = Http::withoutVerifying()->get("https://api.themoviedb.org/3/movie/{$tmdbId}", [
+            'api_key' => $apiKey, 'language' => 'en-US',
+        ]);
+
+        if ($response->successful()) {
+            $data = $response->json();
+
+            $set('title', $data['title']);
+            $set('slug', Str::slug($data['title']));
+            $set('description', $data['overview']);
+            $set('duration', $data['runtime']);
+            $set('release_date', $data['release_date']);
+
+            if (!empty($data['poster_path'])) {
+                $set('thumbnail_url', 'https://image.tmdb.org/t/p/original' . $data['poster_path']);
+            }
+            if (!empty($data['backdrop_path'])) {
+                $set('cover_url', 'https://image.tmdb.org/t/p/original' . $data['backdrop_path']);
+            }
+
+            // Auto Genres
+            if (!empty($data['genres'])) {
+                $genreIds = [];
+                foreach ($data['genres'] as $tmdbGenre) {
+                    $genre = Genre::firstOrCreate(
+                        ['name' => $tmdbGenre['name']],
+                        ['slug' => Str::slug($tmdbGenre['name'])]
+                    );
+                    $genreIds[] = $genre->id;
+                }
+                $set('genres', $genreIds);
+            }
+
+            Notification::make()->title('Movie Data Imported Successfully')->success()->send();
+        }
     }
 }

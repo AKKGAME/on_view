@@ -18,6 +18,7 @@ class GenreResource extends Resource
 {
     protected static ?string $navigationGroup = 'Content Management';
     protected static ?string $model = Genre::class;
+    protected static ?int $navigationSort = 4;
 
     protected static ?string $navigationIcon = 'heroicon-o-tag'; // Icon ပြောင်းထားပါတယ်
 

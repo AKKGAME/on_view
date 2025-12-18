@@ -18,8 +18,9 @@ class B2SettingResource extends Resource
 {
     protected static ?string $model = B2Setting::class;
     protected static ?string $navigationIcon = 'heroicon-o-cloud';
-    protected static ?string $navigationGroup = 'Configuration';
+    protected static ?string $navigationGroup = 'System';
     protected static ?string $label = 'Cloud Settings';
+    protected static ?int $navigationSort = 7;
     
     // -----------------------------------------------------------------------
     // 1. FORM (Settings Input)

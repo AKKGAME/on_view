@@ -21,4 +21,12 @@ class Movie extends Model
     {
         return $this->belongsToMany(Genre::class);
     }
+
+    // ✅ FIX: Widget က users() လို့လှမ်းခေါ်ထားလို့ ဒီ Function နာမည်ကို users လို့ ပေးရပါမယ်
+    public function users()
+    {
+        return $this->belongsToMany(User::class, 'movie_user')
+                    ->withPivot('price') // Pivot table ထဲက ဈေးနှုန်းကိုပါ ယူမယ်
+                    ->withTimestamps();
+    }
 }

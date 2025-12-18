@@ -3,6 +3,7 @@
 namespace App\Providers\Filament;
 
 use Filament\Http\Middleware\Authenticate;
+use BezhanSalleh\FilamentShield\FilamentShieldPlugin;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
@@ -56,6 +57,7 @@ class AdminPanelProvider extends PanelProvider
                 DispatchServingFilamentEvent::class,
             ])
             ->plugins([
+                FilamentShieldPlugin::make(),
                 // Filament v3 မှာ MediaLibrary plugin ကို direct load မရတော့ comment လုပ်ထားပါ
                 // MediaLibrary plugin ကို Forms/Tables/Fields တွေမှာ individually configure လုပ်ရမယ်
                 // SpatieLaravelMediaLibraryPlugin::make(),

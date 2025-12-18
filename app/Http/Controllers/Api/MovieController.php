@@ -7,6 +7,7 @@ use App\Models\Movie;
 use App\Http\Resources\MovieResource;
 use Illuminate\Http\Request;
 use App\Models\Transaction;
+use Illuminate\Support\Facades\DB;
 
 class MovieController extends Controller
 {
@@ -81,7 +82,7 @@ class MovieController extends Controller
             // 3. Transaction History မှတ်မယ် (Optional - App မှာ Transaction Table ရှိရင် သုံးပါ)
             Transaction::create([
                 'user_id' => $user->id,
-                'amount' => -$movie->coin_price,
+                'amount' => $movie->coin_price,
                 'type' => 'movie_purchase',
                 'description' => "Unlocked movie: {$movie->title}",
             ]);

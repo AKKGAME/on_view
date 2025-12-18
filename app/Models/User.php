@@ -2,21 +2,32 @@
 
 namespace App\Models;
 
-// 1. IMPORT SANCTUM
+// 1. STANDARD IMPORTS
 use Laravel\Sanctum\HasApiTokens;
-
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Str;
 use App\Models\Anime;
 
-class User extends Authenticatable
+// 2. FILAMENT IMPORTS
+use Filament\Models\Contracts\FilamentUser;
+use Filament\Panel;
+
+// ✅ CORRECTED IMPORT (Auth ဖြုတ်လိုက်ပါပြီ)
+use Filament\Notifications\Auth\Concerns\HasDatabaseNotifications;
+
+use Spatie\Permission\Traits\HasRoles; 
+
+class User extends Authenticatable implements FilamentUser 
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
     
-    // 2. USE TRAIT
+    // 3. USE TRAITS
     use HasApiTokens, HasFactory, Notifiable;
+    
+    // use HasDatabaseNotifications; // ✅ အခုမှန်သွားပါပြီ
+    use HasRoles; 
 
     /**
      * The attributes that are mass assignable.
@@ -31,8 +42,7 @@ class User extends Authenticatable
         'xp',         
         'rank',       
         'referral_code',
-        'premium_expires_at', // Admin က ပြင်လို့ရအောင် fillable ထဲထည့်ထားသင့်ပါတယ်
-        
+        'premium_expires_at', 
     ];
 
     /**
@@ -45,48 +55,39 @@ class User extends Authenticatable
         'remember_token',
     ];
 
-    /**
-     * ✅ IMPORTANT: API Response ထဲမှာ is_premium ပါလာစေရန်
-     */
     protected $appends = [
         'is_premium',
     ];
 
-    /**
-     * Get the attributes that should be cast.
-     *
-     * @return array<string, string>
-     */
     protected function casts(): array
     {
         return [
             'phone_verified_at' => 'datetime',
             'password' => 'hashed',
             'last_check_in' => 'date',
-            'premium_expires_at' => 'datetime', // ✅ Date အဖြစ် သတ်မှတ်
+            'premium_expires_at' => 'datetime', 
         ];
+    }
+
+    // --- FILAMENT ACCESS CONTROL ---
+    public function canAccessPanel(Panel $panel): bool
+    {
+        return $this->id === 1 || $this->getRoleNames()->isNotEmpty();
     }
     
     // --- ACCESSORS ---
-
-    // ✅ Helper: Premium ဟုတ်မဟုတ် စစ်ရန် Logic
     public function getIsPremiumAttribute()
     {
-        // Premium သက်တမ်းကုန်ဆုံးရက် ရှိပြီး၊ အနာဂတ်မှာ ဖြစ်နေရင် True ပြန်မယ်
         return $this->premium_expires_at && $this->premium_expires_at->isFuture();
     }
 
     // --- EVENTS ---
-
     protected static function booted()
     {
         static::creating(function ($user) {
-            // User မဆောက်ခင် Referral Code အလိုအလျောက် ထုတ်မယ်
             if (empty($user->referral_code)) {
                 $user->referral_code = strtoupper(Str::random(8)); 
             }
-            
-            // Default Values (Optional)
             if (!isset($user->coins)) $user->coins = 0;
             if (!isset($user->xp)) $user->xp = 0;
             if (!isset($user->rank)) $user->rank = 'Novice';
@@ -94,8 +95,6 @@ class User extends Authenticatable
     }
 
     // --- RELATIONSHIPS ---
-
-    // Transaction တွေနဲ့ ချိတ်ဆက်ထားခြင်း
     public function transactions()
     {
         return $this->hasMany(Transaction::class);
@@ -113,17 +112,15 @@ class User extends Authenticatable
         return $this->hasMany(Comment::class);
     }
 
-    // User ဝယ်ထားသော Movie များကို ပြန်ခေါ်ရန်
-public function purchasedMovies()
-{
-    return $this->belongsToMany(Movie::class, 'movie_user')
-                ->withTimestamps()
-                ->withPivot('price');
-}
+    public function purchasedMovies()
+    {
+        return $this->belongsToMany(Movie::class, 'movie_user')
+                    ->withTimestamps()
+                    ->withPivot('price');
+    }
 
-// Movie တစ်ခုကို ဝယ်ပြီးပြီလား စစ်ရန် Helper Function
-public function hasPurchasedMovie($movieId)
-{
-    return $this->purchasedMovies()->where('movie_id', $movieId)->exists();
-}
+    public function hasPurchasedMovie($movieId)
+    {
+        return $this->purchasedMovies()->where('movie_id', $movieId)->exists();
+    }
 }
