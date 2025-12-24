@@ -123,4 +123,10 @@ class User extends Authenticatable implements FilamentUser
     {
         return $this->purchasedMovies()->where('movie_id', $movieId)->exists();
     }
+
+    public function redeemedCoupons()
+{
+    return $this->belongsToMany(CoinCoupon::class, 'coin_coupon_user')
+                ->withPivot('redeemed_at');
+}
 }

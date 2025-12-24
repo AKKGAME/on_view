@@ -18,6 +18,7 @@ use App\Http\Controllers\BannerController;
 use App\Http\Controllers\AppVersionController;
 use App\Http\Controllers\SubscriptionController;
 use App\Http\Controllers\Api\MovieController;
+use App\Http\Controllers\Api\RedeemController;
 
 /*
 |--------------------------------------------------------------------------
@@ -108,5 +109,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // --- 8. Movie Purchase (✅ ဝယ်ယူခြင်းကိုတော့ ဒီအောက်မှာပဲထားပါ) ---
     Route::post('/purchase/movie/{id}', [MovieController::class, 'purchase']);
+
+    Route::post('/redeem-coupon', [RedeemController::class, 'redeem']);
+    Route::get('/redeem-history', [RedeemController::class, 'getHistory']);
 
 });

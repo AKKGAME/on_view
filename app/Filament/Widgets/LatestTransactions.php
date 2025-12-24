@@ -3,90 +3,49 @@
 namespace App\Filament\Widgets;
 
 use App\Models\Transaction;
-use Filament\Tables;
-use Filament\Tables\Table;
-use Filament\Widgets\TableWidget as BaseWidget;
-use Filament\Support\Enums\FontWeight; // Font Weight အတွက်
-use Filament\Tables\Columns\TextColumn;
+use Filament\Widgets\StatsOverviewWidget as BaseWidget;
+use Filament\Widgets\StatsOverviewWidget\Stat;
 
 class LatestTransactions extends BaseWidget
 {
-    protected static ?int $sort = 5; // နံပါတ် ၅ (အောက်ဆုံး)
-    protected int | string | array $columnSpan = 'full'; // နေရာအပြည့်
+    protected static ?int $sort = 1;
+    
+    // Data အပြောင်းအလဲမြန်ရင် 15s ထားပါ၊ All Time မို့လို့ အရမ်းမပြောင်းလဲရင် 30s သို့ 60s ထားတာ Server အတွက် ပိုကောင်းပါတယ်
+    protected static ?string $pollingInterval = '60s'; 
 
-    // Widget ခေါင်းစဉ်
-    protected static ?string $heading = 'Recent Transactions';
-
-    public function table(Table $table): Table
+    protected function getStats(): array
     {
-        return $table
-            ->query(
-                Transaction::with('user')->latest()->limit(5) 
-            )
-            // ဇယားကို အစင်းကြားလေးတွေနဲ့ ပြမယ်
-            ->striped() 
-            
-            // "View All" ခလုတ်ထည့်မယ် (Transaction Resource ရှိရင် Route ချိတ်ပါ)
-            ->headerActions([
-                Tables\Actions\Action::make('view_all')
-                    ->label('View All')
-                    ->link()
-                    ->icon('heroicon-m-arrow-right')
-                    ->url(fn () => route('filament.admin.resources.transactions.index')), // Route ရှိရင်ဖွင့်ပါ
-            ])
-            
-            ->columns([
-                // 1. User Info (Name + Phone)
-                TextColumn::make('user.name')
-                    ->label('User')
-                    ->icon('heroicon-m-user-circle') // Icon လေးထည့်မယ်
-                    ->iconColor('primary')
-                    ->weight(FontWeight::Bold)
-                    ->description(fn (Transaction $record): string => $record->user->phone ?? 'No Phone') // ဖုန်းနံပါတ်ပါ တွဲပြမယ်
-                    ->searchable(),
+        // All Time ဖြစ်တဲ့အတွက် Date Filter တွေ မလိုတော့ပါ (ဖြုတ်လိုက်ပါပြီ)
 
-                // 2. Transaction Type (Badges)
-                TextColumn::make('type')
-                    ->badge()
-                    ->icon(fn (string $state): string => match ($state) {
-                        'topup' => 'heroicon-m-arrow-trending-up',
-                        'purchase', 'movie_purchase', 'subscription' => 'heroicon-m-arrow-trending-down',
-                        'ad_reward' => 'heroicon-m-gift',
-                        'referral_bonus' => 'heroicon-m-users',
-                        default => 'heroicon-m-sparkles',
-                    })
-                    ->color(fn (string $state): string => match ($state) {
-                        'topup' => 'success',
-                        'purchase', 'movie_purchase', 'subscription' => 'danger',
-                        'ad_reward' => 'info',
-                        'referral_bonus' => 'warning', // Referral ကို warning color (yellow/orange)
-                        default => 'gray',
-                    })
-                    ->formatStateUsing(fn (string $state): string => ucwords(str_replace('_', ' ', $state))),
+        // 1. TOP-UP TOTAL (All Time)
+        $totalTopup = Transaction::where('type', 'topup')->sum('amount');
 
-                // 3. Description (Short text)
-                TextColumn::make('description')
-                    ->limit(25)
-                    ->color('gray')
-                    ->tooltip(fn (TextColumn $column): ?string => $column->getState()),
+        // 2. CONTENT SALES (All Time)
+        // purchase + movie_purchase
+        $totalPurchase = Transaction::whereIn('type', ['purchase', 'movie_purchase'])->sum('amount');
 
-                // 4. Amount (Right Aligned & Bold)
-                TextColumn::make('amount')
-                    ->money('mmk')
-                    ->alignRight() // ဂဏန်းမို့ ညာကပ်မယ်
-                    ->weight(FontWeight::ExtraBold) // စာလုံးအမည်း
-                    ->color(fn ($record) => in_array($record->type, ['purchase', 'movie_purchase', 'subscription']) ? 'danger' : 'success'),
+        // 3. SUBSCRIPTION SALES (All Time)
+        $totalSub = Transaction::where('type', 'subscription')->sum('amount');
 
-                // 5. Time (Since + Tooltip Date)
-                TextColumn::make('created_at')
-                    ->label('Time')
-                    ->dateTime()
-                    ->formatStateUsing(fn ($state) => $state->diffForHumans()) // "2 mins ago"
-                    ->tooltip(fn (TextColumn $column) => $column->getState()->format('d M Y, h:i A')) // Tooltip: "12 Dec 2024, 10:30 PM"
-                    ->alignRight()
-                    ->color('gray'),
-            ])
-            ->paginated(false)
-            ->emptyStateHeading('No recent transactions'); // Data မရှိရင်ပြမည့်စာ
+        return [
+            // CARD 1: Total Income (Top-up)
+            Stat::make('Total Top-up Income', number_format($totalTopup) . ' Ks')
+                ->description('All time deposits') // စာသားပြောင်းထားသည်
+                ->descriptionIcon('heroicon-m-wallet')
+                ->color('success') // အစိမ်း
+                ->chart([7, 2, 10, 3, 15, 4, 17]), // ပုံသေ Chart (အလှဆင်ရန်)
+
+            // CARD 2: Total Content Sales
+            Stat::make('Total Content Sales', number_format($totalPurchase) . ' Ks')
+                ->description('All time episodes & movies sold')
+                ->descriptionIcon('heroicon-m-film')
+                ->color('warning'), // လိမ္မော်
+
+            // CARD 3: Total VIP Subscriptions
+            Stat::make('Total VIP Sales', number_format($totalSub) . ' Ks')
+                ->description('All time plan sales')
+                ->descriptionIcon('heroicon-m-star')
+                ->color('primary'), // အပြာ
+        ];
     }
 }

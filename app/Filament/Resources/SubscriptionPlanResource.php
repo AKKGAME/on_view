@@ -32,54 +32,55 @@ class SubscriptionPlanResource extends Resource
                 Grid::make(3)->schema([
                     // --- LEFT COLUMN (General Info) ---
                     Group::make()->schema([
-                        Section::make('Plan Details')
-                            ->description('Define the name and benefits of the VIP plan.')
-                            ->icon('heroicon-m-identification')
+                        Section::make('Plan Information')
+                            ->description('Define the branding and benefits of this plan.')
+                            ->icon('heroicon-m-swatch')
                             ->schema([
                                 TextInput::make('name')
-                                    ->label('Plan Name')
+                                    ->label('Plan Title')
                                     ->placeholder('e.g. Monthly VIP Pass')
                                     ->required()
                                     ->maxLength(255)
+                                    ->prefixIcon('heroicon-m-ticket')
                                     ->live(onBlur: true),
 
                                 Textarea::make('description')
-                                    ->label('Benefits / Description')
-                                    ->placeholder("• Unlimited Anime\n• No Ads\n• 4K Quality")
-                                    ->rows(5)
-                                    ->helperText('List the benefits using bullet points for better readability.')
+                                    ->label('Plan Benefits')
+                                    ->placeholder("• Watch Unlimited Anime\n• Ad-free Experience\n• 4K Resolution")
+                                    ->rows(6)
+                                    ->helperText('Use bullet points for better readability in the app.')
                                     ->columnSpanFull(),
                             ]),
                     ])->columnSpan(2),
 
-                    // --- RIGHT COLUMN (Pricing & Settings) ---
+                    // --- RIGHT COLUMN (Settings) ---
                     Group::make()->schema([
-                        Section::make('Pricing & Validity')
+                        Section::make('Pricing & Terms')
                             ->icon('heroicon-m-currency-dollar')
                             ->schema([
                                 TextInput::make('coin_price')
-                                    ->label('Price')
+                                    ->label('Price (Coins)')
                                     ->numeric()
-                                    ->prefix('🪙') // Coin Icon
-                                    ->suffix('Coins')
+                                    ->prefixIcon('heroicon-o-currency-dollar') // Icon အစားထိုး
                                     ->required()
                                     ->minValue(0)
-                                    ->step(100), // ၁၀၀ ခြားစီ တိုးမယ်
+                                    ->step(100),
 
                                 TextInput::make('duration_days')
-                                    ->label('Duration')
+                                    ->label('Duration (Days)')
                                     ->numeric()
-                                    ->prefixIcon('heroicon-m-calendar-days')
+                                    ->prefixIcon('heroicon-m-calendar')
                                     ->suffix('Days')
                                     ->required()
-                                    ->minValue(1),
+                                    ->minValue(1)
+                                    ->helperText('30 = 1 Month, 365 = 1 Year'),
                             ]),
 
-                        Section::make('Status')
+                        Section::make('Availability')
                             ->schema([
                                 Toggle::make('is_active')
-                                    ->label('Active for Purchase')
-                                    ->helperText('Enable to let users buy this plan.')
+                                    ->label('Active Plan')
+                                    ->helperText('Turn off to hide this plan from users.')
                                     ->default(true)
                                     ->onColor('success')
                                     ->offColor('danger')
@@ -95,41 +96,53 @@ class SubscriptionPlanResource extends Resource
     {
         return $table
             ->columns([
-                // Name & Description combined
+                // 1. Plan Name
                 Tables\Columns\TextColumn::make('name')
+                    ->label('Plan Name')
                     ->searchable()
                     ->weight(FontWeight::Bold)
                     ->icon('heroicon-o-ticket')
-                    ->description(fn (SubscriptionPlan $record) => \Illuminate\Support\Str::limit($record->description, 40)),
+                    ->iconColor('primary')
+                    ->description(fn (SubscriptionPlan $record) => \Illuminate\Support\Str::limit($record->description, 50)),
 
-                // Price with Coin Icon styling
+                // 2. Price (Coins)
                 Tables\Columns\TextColumn::make('coin_price')
                     ->label('Price')
-                    ->formatStateUsing(fn ($state) => number_format($state)) // 1,000 ပုံစံပြမယ်
-                    ->icon('heroicon-m-currency-dollar')
-                    ->iconPosition('before')
-                    ->color('warning') // Gold Color
-                    ->sortable()
+                    ->formatStateUsing(fn ($state) => number_format($state))
+                    ->icon('heroicon-s-currency-dollar') // Solid Icon
+                    ->iconColor('warning') // Gold color
+                    ->color('warning')
                     ->suffix(' Coins')
-                    ->weight(FontWeight::Bold),
+                    ->sortable()
+                    ->weight(FontWeight::ExtraBold),
 
-                // Duration Badge
+                // 3. Duration (Smart Formatting)
                 Tables\Columns\TextColumn::make('duration_days')
                     ->label('Duration')
                     ->badge()
                     ->color(fn (string $state): string => match (true) {
                         $state >= 365 => 'success', // 1 Year = Green
                         $state >= 30 => 'info',     // 1 Month = Blue
-                        default => 'gray',          // Others = Gray
+                        $state >= 7 => 'warning',   // 1 Week = Orange
+                        default => 'gray',
                     })
-                    ->formatStateUsing(fn ($state) => "$state Days")
-                    ->sortable(),
+                    // ✅ ရက် ၃၀ ဆိုရင် "1 Month" လို့ ပြောင်းပြမယ့် Logic
+                    ->formatStateUsing(fn ($state) => match ((int)$state) {
+                        365 => '1 Year',
+                        30 => '1 Month',
+                        7 => '1 Week',
+                        1 => '1 Day',
+                        default => "$state Days",
+                    })
+                    ->sortable()
+                    ->alignCenter(),
 
-                // Toggle Active Status
+                // 4. Status Toggle
                 Tables\Columns\ToggleColumn::make('is_active')
-                    ->label('Status')
+                    ->label('Active')
                     ->onColor('success')
-                    ->offColor('danger'),
+                    ->offColor('danger')
+                    ->alignCenter(),
 
                 Tables\Columns\TextColumn::make('created_at')
                     ->dateTime('d M Y')
@@ -143,8 +156,17 @@ class SubscriptionPlanResource extends Resource
                     ->falseLabel('Inactive Plans'),
             ])
             ->actions([
-                Tables\Actions\EditAction::make()->slideOver(), // Slide Over နဲ့ ပွင့်မယ်
-                Tables\Actions\DeleteAction::make(),
+                // Actions ကို Icon Button တွေပြောင်းလိုက်ခြင်း
+                Tables\Actions\EditAction::make()
+                    ->iconButton()
+                    ->tooltip('Edit Plan')
+                    ->color('primary')
+                    ->slideOver(),
+                
+                Tables\Actions\DeleteAction::make()
+                    ->iconButton()
+                    ->tooltip('Delete Plan')
+                    ->color('danger'),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
@@ -156,9 +178,7 @@ class SubscriptionPlanResource extends Resource
 
     public static function getRelations(): array
     {
-        return [
-            //
-        ];
+        return [];
     }
 
     public static function getPages(): array
