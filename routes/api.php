@@ -19,6 +19,7 @@ use App\Http\Controllers\AppVersionController;
 use App\Http\Controllers\SubscriptionController;
 use App\Http\Controllers\Api\MovieController;
 use App\Http\Controllers\Api\RedeemController;
+use App\Http\Controllers\Api\ThemeController;
 
 /*
 |--------------------------------------------------------------------------
@@ -58,6 +59,8 @@ Route::get('/home/ongoing', [AnimeController::class, 'getOngoingAnimes']); // On
 Route::get('/anime/all', [AnimeController::class, 'getAllAnimes']); // All Anime Screen အတွက်
 Route::get('/anime/search', [AnimeController::class, 'search']); // ✅ Search အတွက် (Controller မှာ function ထည့်ပြီးမှ)
 Route::get('/anime/{slug}', [AnimeController::class, 'showBySlug']); // Detail Screen အတွက်
+
+Route::get('/theme-settings', [ThemeController::class, 'getActiveTheme']);
 
 
 // ==========================================
