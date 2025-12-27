@@ -43,6 +43,7 @@ class User extends Authenticatable implements FilamentUser
         'rank',       
         'referral_code',
         'premium_expires_at', 
+        'device_id',
     ];
 
     /**

@@ -36,10 +36,11 @@ Route::get('/app-version', [AppVersionController::class, 'checkVersion']);
 Route::get('/genres', [UtilityController::class, 'getGenres']);
 Route::get('/payment-methods', [UtilityController::class, 'getPaymentMethods']);
 Route::get('/banners', [BannerController::class, 'index']);
+Route::get('/theme-settings', [ThemeController::class, 'getActiveTheme']);
 
 // 2. Authentication
 Route::post('/register', [AuthController::class, 'register']);
-Route::post('/login', [AuthController::class, 'login']);
+Route::post('/login', [AuthController::class, 'login']); // 🔥 Single Device Logic is inside Controller
 
 // 3. Search (Public Search)
 Route::get('/search', [UtilityController::class, 'search']);
@@ -48,19 +49,17 @@ Route::get('/search', [UtilityController::class, 'search']);
 Route::get('/comics', [ComicController::class, 'index']);
 Route::get('/comics/{slug}', [ComicController::class, 'show']);
 
-// 5. Movies (✅ ဒီ ၃ ကြောင်းကို Public မှာ ပြောင်းထားလိုက်ပါ)
+// 5. Movies
 Route::get('/movies', [MovieController::class, 'index']); // All Movies
 Route::get('/movies/search', [MovieController::class, 'search']); // Search
 Route::get('/movies/{slug}', [MovieController::class, 'show']); // Detail
 
-// 6. Anime (✅ ဒီနေရာမှာ ထပ်ဖြည့်ပါ)
-Route::get('/home/latest', [AnimeController::class, 'getLatestAnimes']); // Home Screen အတွက်
-Route::get('/home/ongoing', [AnimeController::class, 'getOngoingAnimes']); // Ongoing အတွက်
-Route::get('/anime/all', [AnimeController::class, 'getAllAnimes']); // All Anime Screen အတွက်
-Route::get('/anime/search', [AnimeController::class, 'search']); // ✅ Search အတွက် (Controller မှာ function ထည့်ပြီးမှ)
-Route::get('/anime/{slug}', [AnimeController::class, 'showBySlug']); // Detail Screen အတွက်
-
-Route::get('/theme-settings', [ThemeController::class, 'getActiveTheme']);
+// 6. Anime
+Route::get('/home/latest', [AnimeController::class, 'getLatestAnimes']); // Home Screen
+Route::get('/home/ongoing', [AnimeController::class, 'getOngoingAnimes']); // Ongoing
+Route::get('/anime/all', [AnimeController::class, 'getAllAnimes']); // All Anime Screen
+Route::get('/anime/search', [AnimeController::class, 'search']); // Search
+Route::get('/anime/{slug}', [AnimeController::class, 'showBySlug']); // Detail Screen
 
 
 // ==========================================
@@ -69,7 +68,7 @@ Route::get('/theme-settings', [ThemeController::class, 'getActiveTheme']);
 Route::middleware('auth:sanctum')->group(function () {
 
     // --- 1. Auth & Profile ---
-    Route::post('/logout', [AuthController::class, 'logout']);
+    Route::post('/logout', [AuthController::class, 'logout']); // 🔥 Resets Device ID inside Controller
     Route::get('/user', [UserController::class, 'getProfile']);
     Route::post('/user/update', [UserController::class, 'updateProfile']);
     Route::get('/user/library', [UserController::class, 'getLibrary']);
@@ -110,9 +109,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/subscription/plans', [SubscriptionController::class, 'index']);
     Route::post('/subscription/purchase', [SubscriptionController::class, 'purchase']);
 
-    // --- 8. Movie Purchase (✅ ဝယ်ယူခြင်းကိုတော့ ဒီအောက်မှာပဲထားပါ) ---
+    // --- 8. Movie Purchase ---
     Route::post('/purchase/movie/{id}', [MovieController::class, 'purchase']);
 
+    // --- 9. Redeem ---
     Route::post('/redeem-coupon', [RedeemController::class, 'redeem']);
     Route::get('/redeem-history', [RedeemController::class, 'getHistory']);
 

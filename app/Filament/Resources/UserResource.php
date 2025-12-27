@@ -61,12 +61,19 @@ class UserResource extends Resource
                                     ->dehydrated(fn ($state) => filled($state))
                                     ->required(fn (string $context): bool => $context === 'create')
                                     ->helperText('Leave empty to keep current password'),
+                                
+                                // 🔥 Active Device ID (Read Only)
+                                TextInput::make('device_id')
+                                    ->label('Active Device ID')
+                                    ->prefixIcon('heroicon-m-device-phone-mobile')
+                                    ->disabled()
+                                    ->helperText('This ID locks the account to a specific phone.'),
                             ]),
 
                         Section::make('Access Control')
                             ->icon('heroicon-m-shield-check')
                             ->schema([
-                                // ✅ Role ရွေးလို့ရအောင် ထည့်ပေးထားသည် (Shield အတွက်)
+                                // Role ရွေးလို့ရအောင် ထည့်ပေးထားသည် (Shield အတွက်)
                                 Select::make('roles')
                                     ->relationship('roles', 'name')
                                     ->multiple()
@@ -128,7 +135,15 @@ class UserResource extends Resource
                     ->searchable()
                     ->weight(FontWeight::Bold)
                     ->description(fn (User $record) => $record->phone) // ဖုန်းနံပါတ်ကို နာမည်အောက်မှာပြမယ်
-                    ->copyable(), // Click နှိပ်ရင် ကူးယူလို့ရမယ်
+                    ->copyable(), 
+
+                // 🔥 Device ID (Hidden by default)
+                Tables\Columns\TextColumn::make('device_id')
+                    ->label('Device ID')
+                    ->limit(10)
+                    ->copyable()
+                    ->toggleable(isToggledHiddenByDefault: true)
+                    ->color('gray'),
 
                 // Role ပြသခြင်း
                 Tables\Columns\TextColumn::make('roles.name')
@@ -142,7 +157,7 @@ class UserResource extends Resource
 
                 Tables\Columns\TextColumn::make('coins')
                     ->label('Balance')
-                    ->money('mmk') // 1,000 MMK ပုံစံပြမယ်
+                    ->money('mmk') 
                     ->color('success')
                     ->sortable()
                     ->weight(FontWeight::Bold),
@@ -150,7 +165,7 @@ class UserResource extends Resource
                 Tables\Columns\TextColumn::make('rank')
                     ->badge()
                     ->color(fn (string $state): string => match ($state) {
-                        'Legend' => 'warning', // Gold
+                        'Legend' => 'warning', 
                         'GrandMaster' => 'danger',
                         'Novice' => 'gray',
                         default => 'info',
@@ -236,7 +251,27 @@ class UserResource extends Resource
                 ])
                 ->label('Wallet')
                 ->icon('heroicon-m-banknotes')
-                ->color('warning'),
+                ->color('success'),
+
+                // 🔥 Reset Device Action
+                Action::make('reset_device')
+                    ->label('Reset Device')
+                    ->icon('heroicon-m-device-phone-mobile')
+                    ->color('warning')
+                    ->requiresConfirmation()
+                    ->modalHeading('Reset Device Lock?')
+                    ->modalDescription('This will allow the user to login from a new phone. The current device session will be terminated.')
+                    ->action(function (User $record) {
+                        $record->update(['device_id' => null]);
+                        $record->tokens()->delete(); // Force logout
+                        
+                        Notification::make()
+                            ->title('Device Reset Successful')
+                            ->success()
+                            ->body("User {$record->name} can now login on a new device.")
+                            ->send();
+                    })
+                    ->tooltip('Clear device lock for lost phone'),
 
                 Tables\Actions\EditAction::make(),
             ])
