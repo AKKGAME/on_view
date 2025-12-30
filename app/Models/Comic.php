@@ -4,7 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Storage; // Image URL အတွက်
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Comic extends Model
 {
@@ -18,11 +19,14 @@ class Comic extends Model
         'cover_image',
         'author',
         'is_finished',
+        'channel_id', // Channel ချိတ်ဆက်ရန်
+        'view_count', // ကြည့်ရှုသူအရေအတွက်
     ];
 
     // 2. Data Type ပြောင်းလဲခြင်း
     protected $casts = [
-        'is_finished' => 'boolean', // 0/1 ကို true/false အဖြစ် ပြောင်းမည်
+        'is_finished' => 'boolean',
+        'view_count' => 'integer',
     ];
 
     // 3. API Response တွင် အလိုအလျောက် ထည့်သွင်းမည့် Custom Attribute
@@ -35,10 +39,18 @@ class Comic extends Model
     /**
      * Comic တစ်ခုတွင် Chapter များစွာ ရှိနိုင်သည်။
      */
-    public function chapters()
+    public function chapters(): HasMany
     {
         // Chapter နံပါတ်အလိုက် ငယ်စဉ်ကြီးလိုက် စီထားပါမည်
         return $this->hasMany(ComicChapter::class)->orderBy('chapter_number', 'asc');
+    }
+
+    /**
+     * Channel (Translator/Group) နှင့် ချိတ်ဆက်ခြင်း
+     */
+    public function channel(): BelongsTo
+    {
+        return $this->belongsTo(Channel::class);
     }
 
     // ----------------------------------------------------------------
@@ -53,7 +65,7 @@ class Comic extends Model
     public function getFullCoverUrlAttribute()
     {
         if (!$this->cover_image) {
-            return null; // သို့မဟုတ် Placeholder URL ထည့်နိုင်သည်
+            return null; // Placeholder URL ထည့်လိုက ဤနေရာတွင် ပြင်ပါ
         }
 
         // အကယ်၍ URL အပြည့်အစုံ (http...) ပါပြီးသားဖြစ်နေရင် (ဥပမာ S3 link)
@@ -62,7 +74,6 @@ class Comic extends Model
         }
 
         // Local Storage မှ ပုံဖြစ်ပါက Full URL ပြန်ပေးမည်
-        // 'storage/' prefix သည် public disk symlink အတွက်ဖြစ်သည်
         return asset('storage/' . $this->cover_image);
     }
 }

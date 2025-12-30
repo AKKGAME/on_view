@@ -16,6 +16,8 @@ use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Grid;
 use Illuminate\Support\Str;
 use Filament\Forms\Set;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
 
 class ComicResource extends Resource
 {
@@ -61,6 +63,25 @@ class ComicResource extends Resource
                                     ->inline(false),
                             ]),
 
+                        Grid::make(2)->schema([
+                            // 🔥 Channel Select Box Added Here
+                            Select::make('channel_id')
+                                ->relationship('channel', 'name')
+                                ->searchable()
+                                ->preload()
+                                ->createOptionForm([
+                                    TextInput::make('name')->required()->live()->afterStateUpdated(fn(Set $set, $state) => $set('slug', Str::slug($state))),
+                                    TextInput::make('slug')->required(),
+                                ])
+                                ->label('Source Channel'),
+
+                            TextInput::make('view_count')
+                                ->label('Total Views')
+                                ->numeric()
+                                ->default(0)
+                                ->disabled(),
+                        ]),
+
                         // 5. Description
                         Forms\Components\Textarea::make('description')
                             ->rows(3)
@@ -73,6 +94,7 @@ class ComicResource extends Resource
                         Forms\Components\FileUpload::make('cover_image')
                             ->image()
                             ->directory('comics/covers') // storage/app/public/comics/covers
+                            ->imageEditor()
                             ->required()
                             ->columnSpanFull(),
                     ]),
@@ -86,43 +108,68 @@ class ComicResource extends Resource
                 // 1. Cover Image
                 Tables\Columns\ImageColumn::make('cover_image')
                     ->width(60)
-                    ->height(90),
+                    ->height(90)
+                    ->extraImgAttributes(['class' => 'object-cover rounded-md shadow-sm']),
 
                 // 2. Title
                 Tables\Columns\TextColumn::make('title')
                     ->searchable()
                     ->sortable()
-                    ->weight('bold'),
+                    ->weight('bold')
+                    ->wrap()
+                    ->limit(40),
 
-                // 3. Author
-                Tables\Columns\TextColumn::make('author')
-                    ->searchable()
-                    ->placeholder('Unknown'),
+                // 3. Channel Info
+                Tables\Columns\TextColumn::make('channel.name')
+                    ->label('Channel')
+                    ->icon('heroicon-m-tv')
+                    ->color('warning')
+                    ->toggleable(),
 
-                // 4. Status Icon
+                // 4. View Count
+                Tables\Columns\TextColumn::make('view_count')
+                    ->label('Views')
+                    ->icon('heroicon-m-eye')
+                    ->numeric()
+                    ->sortable()
+                    ->color('gray'),
+
+                // 5. Chapters Count
+                Tables\Columns\TextColumn::make('chapters_count')
+                    ->counts('chapters')
+                    ->label('Chs')
+                    ->badge()
+                    ->color('info')
+                    ->alignCenter(),
+
+                // 6. Status Icon
                 Tables\Columns\IconColumn::make('is_finished')
                     ->label('Status')
                     ->boolean()
-                    ->trueIcon('heroicon-o-check-circle')
+                    ->trueIcon('heroicon-s-check-circle')
                     ->falseIcon('heroicon-o-clock')
                     ->trueColor('success')
-                    ->falseColor('warning'),
-
-                // 5. Chapters Count (Optional - Performance ထိခိုက်နိုင်သည်)
-                Tables\Columns\TextColumn::make('chapters_count')
-                    ->counts('chapters')
-                    ->label('Chapters'),
+                    ->falseColor('warning')
+                    ->alignCenter(),
 
                 Tables\Columns\TextColumn::make('created_at')
-                    ->dateTime()
+                    ->dateTime('d M Y')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
+            ->defaultSort('created_at', 'desc')
             ->filters([
                 // Filter by Status
-                Tables\Filters\Filter::make('is_finished')
-                    ->query(fn (Builder $query) => $query->where('is_finished', true))
-                    ->label('Completed Only'),
+                Tables\Filters\TernaryFilter::make('is_finished')
+                    ->label('Status')
+                    ->trueLabel('Completed')
+                    ->falseLabel('Ongoing'),
+
+                // Filter by Channel
+                Tables\Filters\SelectFilter::make('channel')
+                    ->relationship('channel', 'name')
+                    ->searchable()
+                    ->preload(),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),

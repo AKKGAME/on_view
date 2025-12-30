@@ -116,17 +116,29 @@ class AnimeResource extends Resource
                                     ->maxLength(65535)
                                     ->columnSpanFull(),
 
-                                Select::make('genres')
-                                    ->relationship('genres', 'name')
-                                    ->multiple()
-                                    ->preload()
-                                    ->searchable()
-                                    ->createOptionForm([
-                                        TextInput::make('name')->required()->live()->afterStateUpdated(fn(Set $set, $state) => $set('slug', Str::slug($state))),
-                                        TextInput::make('slug')->required(),
-                                    ])
-                                    ->columnSpanFull(),
-                            ])->columns(2),
+                                Grid::make(2)->schema([
+                                    Select::make('genres')
+                                        ->relationship('genres', 'name')
+                                        ->multiple()
+                                        ->preload()
+                                        ->searchable()
+                                        ->createOptionForm([
+                                            TextInput::make('name')->required()->live()->afterStateUpdated(fn(Set $set, $state) => $set('slug', Str::slug($state))),
+                                            TextInput::make('slug')->required(),
+                                        ]),
+
+                                    // 🔥 Channel Select Box Added Here
+                                    Select::make('channel_id')
+                                        ->relationship('channel', 'name')
+                                        ->searchable()
+                                        ->preload()
+                                        ->createOptionForm([
+                                            TextInput::make('name')->required()->live()->afterStateUpdated(fn(Set $set, $state) => $set('slug', Str::slug($state))),
+                                            TextInput::make('slug')->required(),
+                                        ])
+                                        ->label('Translator/Channel'),
+                                ]),
+                            ]),
 
                         Section::make('Media Assets')
                             ->icon('heroicon-m-photo')
@@ -159,11 +171,18 @@ class AnimeResource extends Resource
                                     ->offIcon('heroicon-m-clock')
                                     ->inline(false),
 
-                                TextInput::make('total_episodes')
-                                    ->label('Total Episodes')
-                                    ->numeric()
-                                    ->default(0)
-                                    ->prefixIcon('heroicon-m-hashtag'),
+                                Grid::make(2)->schema([
+                                    TextInput::make('total_episodes')
+                                        ->label('Total Eps')
+                                        ->numeric()
+                                        ->default(0),
+                                    
+                                    TextInput::make('view_count')
+                                        ->label('Views')
+                                        ->numeric()
+                                        ->default(0)
+                                        ->disabled(),
+                                ]),
                                 
                                 DatePicker::make('created_at')
                                     ->label('Added Date')
@@ -191,7 +210,7 @@ class AnimeResource extends Resource
                 Tables\Columns\ImageColumn::make('thumbnail_url')
                     ->label('Poster')
                     ->square()
-                    ->extraImgAttributes(['class' => 'object-cover rounded-lg shadow-md']) // ပုံကို လှအောင်လုပ်ခြင်း
+                    ->extraImgAttributes(['class' => 'object-cover rounded-lg shadow-md']) 
                     ->height(80)
                     ->width(80),
 
@@ -202,11 +221,11 @@ class AnimeResource extends Resource
                     ->wrap()
                     ->limit(50),
 
-                Tables\Columns\TextColumn::make('genres.name')
-                    ->badge()
-                    ->color('primary')
-                    ->limitList(2)
-                    ->separator(','),
+                Tables\Columns\TextColumn::make('channel.name')
+                    ->label('Channel')
+                    ->icon('heroicon-m-tv')
+                    ->color('warning')
+                    ->toggleable(),
 
                 Tables\Columns\TextColumn::make('seasons_count')
                     ->counts('seasons')
@@ -215,10 +234,11 @@ class AnimeResource extends Resource
                     ->color('info')
                     ->alignCenter(),
                 
-                Tables\Columns\TextColumn::make('total_episodes')
-                    ->label('Eps')
-                    ->numeric()
+                Tables\Columns\TextColumn::make('view_count')
+                    ->label('Views')
+                    ->icon('heroicon-m-eye')
                     ->sortable()
+                    ->formatStateUsing(fn ($state) => number_format($state))
                     ->color('gray'),
 
                 Tables\Columns\IconColumn::make('is_completed')
@@ -245,6 +265,11 @@ class AnimeResource extends Resource
                 Tables\Filters\SelectFilter::make('genres')
                     ->relationship('genres', 'name')
                     ->multiple()
+                    ->preload(),
+
+                Tables\Filters\SelectFilter::make('channel')
+                    ->relationship('channel', 'name')
+                    ->searchable()
                     ->preload(),
             ])
             ->actions([
@@ -296,9 +321,8 @@ class AnimeResource extends Resource
         ];
     }
 
-    // --- HELPER FUNCTIONS (Logic ခွဲထုတ်ခြင်း) ---
+    // --- HELPER FUNCTIONS ---
 
-    // 1. Fill Form Data
     protected static function fillDataFromTmdb(Set $set, string $tmdbId)
     {
         $apiKey = Setting::where('key', 'tmdb_api_key')->value('value');
@@ -344,7 +368,6 @@ class AnimeResource extends Resource
         }
     }
 
-    // 2. Sync Seasons Logic
     protected static function syncSeasonsFromTmdb(Anime $record)
     {
         $apiKey = Setting::where('key', 'tmdb_api_key')->value('value');
@@ -368,7 +391,7 @@ class AnimeResource extends Resource
         $count = 0;
 
         foreach ($seasons as $tmdbSeason) {
-            if ($tmdbSeason['season_number'] === 0) continue; // Skip Specials if needed
+            if ($tmdbSeason['season_number'] === 0) continue; 
 
             $season = $record->seasons()->updateOrCreate(
                 ['season_number' => $tmdbSeason['season_number']],

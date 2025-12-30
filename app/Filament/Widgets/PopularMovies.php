@@ -45,7 +45,7 @@ class PopularMovies extends BaseWidget
                     ->alignCenter(),
 
                 // 2. POSTER (Square looks better for movies)
-                Tables\Columns\ImageColumn::make('poster')
+                Tables\Columns\ImageColumn::make('thumbnail_url')
                     ->label('Poster')
                     ->square() // ရုပ်ရှင် Poster မို့ Square ထားတာ ပိုလှပါတယ်
                     ->size(60)
@@ -67,16 +67,16 @@ class PopularMovies extends BaseWidget
                     ->formatStateUsing(fn ($state) => number_format($state) . ' Tickets'),
 
                 // 5. PRICE (Per Unit)
-                Tables\Columns\TextColumn::make('price')
+                Tables\Columns\TextColumn::make('coin_price')
                     ->label('Unit Price')
                     ->money('mmk')
                     ->color('gray')
                     ->toggleable(isToggledHiddenByDefault: true), // ပုံမှန်အားဖြင့် ဖျောက်ထားမယ်
 
                 // 6. TOTAL REVENUE (Sold * Price) -> အသစ်ထည့်ထားသည်
-                Tables\Columns\TextColumn::make('total_revenue')
+                Tables\Columns\TextColumn::make('total_price')
                     ->label('Total Revenue')
-                    ->state(fn (Movie $record) => $record->users_count * $record->price) // တွက်ချက်မှု
+                    ->state(fn (Movie $record) => $record->users_count * $record->coin_price) // တွက်ချက်မှု
                     ->money('mmk')
                     ->weight(FontWeight::ExtraBold)
                     ->color('primary'),

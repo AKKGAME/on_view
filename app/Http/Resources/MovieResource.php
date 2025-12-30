@@ -33,6 +33,13 @@ class MovieResource extends JsonResource
             // Monetization
             'is_premium' => (bool) $this->is_premium,
             'coin_price' => $this->coin_price,
+            'view_count' => $this->view_count,
+
+            'channel' => $this->channel ? [
+            'id' => $this->channel->id,
+            'name' => $this->channel->name,
+            'logo' => $this->channel->logo, // Full URL logic in App or Accessor
+            ] : null,
             
             // ✅ (2) ကြေညာထားတဲ့ Variable ကို ဒီမှာပြန်သုံးပါ
             'is_unlocked' => $isUnlocked, 

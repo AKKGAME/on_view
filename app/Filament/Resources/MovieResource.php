@@ -48,7 +48,7 @@ class MovieResource extends Resource
                             ->searchable()
                             ->preload()
                             ->live(debounce: 500)
-                            ->dehydrated(false) // DB ထဲ မထည့်ဘူး Form မှာပဲသုံးမယ်
+                            ->dehydrated(false)
                             ->placeholder('Enter Movie Title or ID...')
                             ->prefixIcon('heroicon-m-magnifying-glass')
                             ->getSearchResultsUsing(function (string $search) {
@@ -98,7 +98,7 @@ class MovieResource extends Resource
                                     ->prefix(url('/movie/')),
 
                                 Textarea::make('description')
-                                    ->rows(11)
+                                    ->rows(8)
                                     ->columnSpanFull(),
 
                                 Textarea::make('video_url')
@@ -143,6 +143,17 @@ class MovieResource extends Resource
                                     ])
                                     ->required(),
 
+                                // 🔥 Channel Select Box Added Here
+                                Select::make('channel_id')
+                                    ->relationship('channel', 'name')
+                                    ->searchable()
+                                    ->preload()
+                                    ->createOptionForm([
+                                        TextInput::make('name')->required()->live()->afterStateUpdated(fn(Set $set, $state) => $set('slug', Str::slug($state))),
+                                        TextInput::make('slug')->required(),
+                                    ])
+                                    ->label('Translator/Channel'),
+
                                 TextInput::make('duration')
                                     ->label('Runtime')
                                     ->numeric()
@@ -174,7 +185,7 @@ class MovieResource extends Resource
                                         ->prefix('🪙')
                                         ->required(),
                                 ])
-                                ->visible(fn (Get $get) => $get('is_premium')), // Premium ဖြစ်မှပေါ်မယ်
+                                ->visible(fn (Get $get) => $get('is_premium')),
 
                                 TextInput::make('xp_reward')
                                     ->label('XP Reward')
@@ -184,13 +195,19 @@ class MovieResource extends Resource
                                     ->helperText('XP given after watching.'),
                             ]),
 
-                        Section::make('Visibility')
+                        Section::make('Visibility & Stats')
                             ->schema([
                                 Toggle::make('is_published')
                                     ->label('Published')
                                     ->default(true)
-                                    ->onColor('success')
-                                    ->helperText('Visible to users app-wide.'),
+                                    ->onColor('success'),
+
+                                TextInput::make('view_count')
+                                    ->label('Total Views')
+                                    ->numeric()
+                                    ->default(0)
+                                    ->disabled()
+                                    ->prefixIcon('heroicon-m-eye'),
                             ]),
                     ])->columnSpan(['lg' => 1]),
                 ]),
@@ -215,24 +232,39 @@ class MovieResource extends Resource
                     ->description(fn (Movie $record) => $record->release_date ? $record->release_date->format('Y') : '-')
                     ->wrap(),
 
+                // 🔥 Channel Column
+                Tables\Columns\TextColumn::make('channel.name')
+                    ->label('Channel')
+                    ->icon('heroicon-m-tv')
+                    ->color('warning')
+                    ->toggleable(),
+
                 Tables\Columns\TextColumn::make('genres.name')
                     ->badge()
                     ->color('primary')
                     ->limitList(2)
                     ->separator(','),
 
+                // 🔥 View Count Column
+                Tables\Columns\TextColumn::make('view_count')
+                    ->label('Views')
+                    ->icon('heroicon-m-eye')
+                    ->sortable()
+                    ->formatStateUsing(fn ($state) => number_format($state))
+                    ->color('gray'),
+
                 Tables\Columns\IconColumn::make('is_premium')
                     ->label('Type')
                     ->boolean()
                     ->trueIcon('heroicon-s-star')
                     ->falseIcon('heroicon-o-check-circle')
-                    ->trueColor('warning') // Premium is Gold/Orange
+                    ->trueColor('warning')
                     ->falseColor('gray')
                     ->alignCenter(),
 
                 Tables\Columns\TextColumn::make('coin_price')
                     ->label('Price')
-                    ->money('mmk') // Or just numeric if prefer Coin icon
+                    ->numeric()
                     ->color('success')
                     ->sortable()
                     ->formatStateUsing(fn ($state) => $state > 0 ? number_format($state) . ' Coins' : 'Free'),
@@ -254,6 +286,11 @@ class MovieResource extends Resource
                 Tables\Filters\SelectFilter::make('genres')
                     ->relationship('genres', 'name')
                     ->multiple()
+                    ->preload(),
+
+                Tables\Filters\SelectFilter::make('channel')
+                    ->relationship('channel', 'name')
+                    ->searchable()
                     ->preload(),
             ])
             ->actions([

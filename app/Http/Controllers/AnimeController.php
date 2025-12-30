@@ -7,12 +7,12 @@ use Illuminate\Http\Request;
 
 class AnimeController extends Controller
 {
-    // ✅ Helper: Data တစ်ခုချင်းစီကို ပုံစံချခြင်း
+    // ✅ Helper: Data Transform
     private function transformAnime($anime) {
         $data = $anime->toArray();
         $data['cover_url'] = $anime->cover_image;
         
-        // နောက်ဆုံး Episode နံပါတ်ကို ရှာဖွေခြင်း
+        // Latest Episode Logic
         $latestSeason = $anime->seasons->sortByDesc('id')->first();
         $latestEpisode = $latestSeason ? $latestSeason->episodes->sortByDesc('episode_number')->first() : null;
         
@@ -24,12 +24,11 @@ class AnimeController extends Controller
     // GET /home/latest
     public function getLatestAnimes()
     {
-        // paginate(12) ကိုသုံးလိုက်ပါပြီ
-        $animes = Anime::with(['seasons', 'genres'])
+        // 🔥 'channel' relation ကို ထည့်သွင်းခြင်း
+        $animes = Anime::with(['seasons', 'genres', 'channel']) 
                     ->latest()
                     ->paginate(12);
 
-        // Paginator data ကို transform လုပ်ခြင်း
         $animes->getCollection()->transform(function ($anime) {
             return $this->transformAnime($anime);
         });
@@ -40,12 +39,13 @@ class AnimeController extends Controller
     // GET /home/ongoing
     public function getOngoingAnimes()
     {
+        // 🔥 'channel' relation ကို ထည့်သွင်းခြင်း
         $animes = Anime::where('is_completed', false)
-                    ->with(['genres', 'seasons.episodes' => function($q) {
+                    ->with(['genres', 'channel', 'seasons.episodes' => function($q) {
                         $q->orderBy('episode_number', 'desc');
                     }])
                     ->latest()
-                    ->paginate(12); // Pagination 12
+                    ->paginate(12);
                     
         $animes->getCollection()->transform(function ($anime) {
             return $this->transformAnime($anime);
@@ -57,9 +57,10 @@ class AnimeController extends Controller
     // GET /anime/all
     public function getAllAnimes()
     {
-        $animes = Anime::with(['seasons', 'genres'])
+        // 🔥 'channel' relation ကို ထည့်သွင်းခြင်း
+        $animes = Anime::with(['seasons', 'genres', 'channel'])
                     ->latest()
-                    ->paginate(12); // Pagination 12
+                    ->paginate(12);
         
         $animes->getCollection()->transform(function ($anime) {
             return $this->transformAnime($anime);
@@ -68,7 +69,7 @@ class AnimeController extends Controller
         return $animes;
     }
     
-    // Route: GET /api/anime/search
+    // GET /api/anime/search
     public function search(Request $request)
     {
         $query = $request->input('query');
@@ -77,13 +78,12 @@ class AnimeController extends Controller
             return response()->json([]);
         }
 
+        // 🔥 'channel' relation ကို ထည့်သွင်းခြင်း
         $animes = Anime::where('title', 'LIKE', "%{$query}%")
-                    ->with(['seasons', 'genres'])
+                    ->with(['seasons', 'genres', 'channel'])
                     ->take(20)
                     ->get();
 
-        // ✅ FIX: Search Result ကိုလည်း transformAnime ဖြင့် ပုံစံချပေးရပါမယ်
-        // Paginator မဟုတ်ဘဲ Collection ဖြစ်လို့ map() ကို သုံးပါတယ်
         $formattedData = $animes->map(function ($anime) {
             return $this->transformAnime($anime);
         });
@@ -94,9 +94,9 @@ class AnimeController extends Controller
     // GET /anime/{slug}
     public function showBySlug($slug)
     {
-        // Single item ဖြစ်တဲ့အတွက် Pagination မလိုပါ
+        // 🔥 'channel' relation ကို ထည့်သွင်းခြင်း (အရေးအကြီးဆုံး)
         $anime = Anime::where('slug', $slug)
-                    ->with(['seasons.episodes', 'genres'])
+                    ->with(['seasons.episodes', 'genres', 'channel'])
                     ->firstOrFail();
                     
         return $this->transformAnime($anime);

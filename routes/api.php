@@ -20,6 +20,8 @@ use App\Http\Controllers\SubscriptionController;
 use App\Http\Controllers\Api\MovieController;
 use App\Http\Controllers\Api\RedeemController;
 use App\Http\Controllers\Api\ThemeController;
+use App\Http\Controllers\Api\ViewCountController;
+use App\Http\Controllers\Api\ChannelController;
 
 /*
 |--------------------------------------------------------------------------
@@ -60,6 +62,10 @@ Route::get('/home/ongoing', [AnimeController::class, 'getOngoingAnimes']); // On
 Route::get('/anime/all', [AnimeController::class, 'getAllAnimes']); // All Anime Screen
 Route::get('/anime/search', [AnimeController::class, 'search']); // Search
 Route::get('/anime/{slug}', [AnimeController::class, 'showBySlug']); // Detail Screen
+Route::post('/view-count/increment', [ViewCountController::class, 'increment']);
+
+Route::get('/channels', [ChannelController::class, 'index']);
+Route::get('/channels/{id}', [ChannelController::class, 'show']);
 
 
 // ==========================================
