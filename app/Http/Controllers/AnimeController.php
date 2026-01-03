@@ -24,7 +24,6 @@ class AnimeController extends Controller
     // GET /home/latest
     public function getLatestAnimes()
     {
-        // 🔥 'channel' relation ကို ထည့်သွင်းခြင်း
         $animes = Anime::with(['seasons', 'genres', 'channel']) 
                     ->latest()
                     ->paginate(12);
@@ -36,10 +35,24 @@ class AnimeController extends Controller
         return $animes;
     }
 
+    // GET /home/top-viewed (View အများဆုံး ၁၀ ခု)
+    public function getTopViewedAnimes()
+    {
+        $animes = Anime::with(['seasons', 'genres', 'channel'])
+                    ->orderBy('view_count', 'desc') 
+                    ->take(10)
+                    ->get();
+
+        $formattedData = $animes->map(function ($anime) {
+            return $this->transformAnime($anime);
+        });
+
+        return response()->json($formattedData);
+    }
+
     // GET /home/ongoing
     public function getOngoingAnimes()
     {
-        // 🔥 'channel' relation ကို ထည့်သွင်းခြင်း
         $animes = Anime::where('is_completed', false)
                     ->with(['genres', 'channel', 'seasons.episodes' => function($q) {
                         $q->orderBy('episode_number', 'desc');
@@ -57,7 +70,6 @@ class AnimeController extends Controller
     // GET /anime/all
     public function getAllAnimes()
     {
-        // 🔥 'channel' relation ကို ထည့်သွင်းခြင်း
         $animes = Anime::with(['seasons', 'genres', 'channel'])
                     ->latest()
                     ->paginate(12);
@@ -78,7 +90,6 @@ class AnimeController extends Controller
             return response()->json([]);
         }
 
-        // 🔥 'channel' relation ကို ထည့်သွင်းခြင်း
         $animes = Anime::where('title', 'LIKE', "%{$query}%")
                     ->with(['seasons', 'genres', 'channel'])
                     ->take(20)
@@ -94,11 +105,19 @@ class AnimeController extends Controller
     // GET /anime/{slug}
     public function showBySlug($slug)
     {
-        // 🔥 'channel' relation ကို ထည့်သွင်းခြင်း (အရေးအကြီးဆုံး)
+        // 🔥 ပြင်ဆင်ထားသောနေရာ: Subtitles ကိုပါ ဆွဲထုတ်ခြင်း
         $anime = Anime::where('slug', $slug)
-                    ->with(['seasons.episodes', 'genres', 'channel'])
+                    ->with([
+                        // 'seasons.episodes' အစား 'seasons.episodes.subtitles' လို့ပြောင်းလိုက်ပါတယ်
+                        'seasons.episodes.subtitles', 
+                        'genres', 
+                        'channel'
+                    ])
                     ->firstOrFail();
                     
+        // View Count တိုးခြင်း (Optional)
+        // $anime->increment('view_count');
+
         return $this->transformAnime($anime);
     }
 }

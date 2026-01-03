@@ -63,6 +63,7 @@ Route::get('/anime/all', [AnimeController::class, 'getAllAnimes']); // All Anime
 Route::get('/anime/search', [AnimeController::class, 'search']); // Search
 Route::get('/anime/{slug}', [AnimeController::class, 'showBySlug']); // Detail Screen
 Route::post('/view-count/increment', [ViewCountController::class, 'increment']);
+Route::get('/home/top-viewed', [AnimeController::class, 'getTopViewedAnimes']);
 
 Route::get('/channels', [ChannelController::class, 'index']);
 Route::get('/channels/{id}', [ChannelController::class, 'show']);

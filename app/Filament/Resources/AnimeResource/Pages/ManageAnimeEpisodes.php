@@ -5,6 +5,7 @@ namespace App\Filament\Resources\AnimeResource\Pages;
 use App\Filament\Resources\AnimeResource;
 use App\Models\Episode;
 use App\Models\Season;
+use App\Models\Setting;
 use Filament\Resources\Pages\Page;
 use Filament\Resources\Pages\Concerns\InteractsWithRecord;
 use Filament\Tables\Concerns\InteractsWithTable;
@@ -12,15 +13,18 @@ use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Table;
 use Filament\Tables;
 use Filament\Forms;
-use Filament\Actions\Action; // Header Action အတွက်
+use Filament\Actions\Action; 
 use Filament\Forms\Get;
 use Filament\Forms\Set;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Grid;
+use Filament\Forms\Components\Repeater; // 🔥 Repeater Added
+use Filament\Forms\Components\Select;   // 🔥 Select Added
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Support\Str;
 use Filament\Notifications\Notification;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\Http;
 
 class ManageAnimeEpisodes extends Page implements HasTable
 {
@@ -45,23 +49,99 @@ class ManageAnimeEpisodes extends Page implements HasTable
         return "{$this->season->title} - Episodes";
     }
 
-    // Header တွင် Back Button ထည့်ခြင်း
     protected function getHeaderActions(): array
     {
         return [
             Action::make('back_to_seasons')
-                ->label('Back to Seasons')
+                ->label('Back')
                 ->icon('heroicon-o-arrow-left')
                 ->color('gray')
                 ->url(AnimeResource::getUrl('seasons', ['record' => $this->record])),
+
+            Action::make('fetch_single_episode')
+                ->label('Fetch Next Episode (TMDB)')
+                ->icon('heroicon-o-cloud-arrow-down')
+                ->color('info')
+                ->form([
+                    Forms\Components\TextInput::make('episode_number')
+                        ->label('Episode Number')
+                        ->numeric()
+                        ->required()
+                        ->default(function () {
+                            $lastEp = Episode::where('season_id', $this->season_id)
+                                ->max('episode_number');
+                            return $lastEp ? $lastEp + 1 : 1;
+                        })
+                        ->helperText('Enter the episode number you want to fetch.'),
+                ])
+                ->action(function (array $data) {
+                    $this->fetchAndCreateEpisode($data['episode_number']);
+                }),
         ];
+    }
+
+    protected function fetchAndCreateEpisode($episodeNumber)
+    {
+        $apiKey = Setting::where('key', 'tmdb_api_key')->value('value');
+        $tmdbId = $this->record->tmdb_id;
+        $seasonNumber = $this->season->season_number;
+
+        if (!$apiKey) {
+            Notification::make()->title('API Key Missing')->danger()->send();
+            return;
+        }
+        if (!$tmdbId) {
+            Notification::make()->title('Anime TMDB ID Missing')->danger()->send();
+            return;
+        }
+
+        $exists = Episode::where('season_id', $this->season_id)
+            ->where('episode_number', $episodeNumber)
+            ->exists();
+
+        if ($exists) {
+            Notification::make()->title("Episode #{$episodeNumber} already exists!")->warning()->send();
+            return;
+        }
+
+        $response = Http::withoutVerifying()->get("https://api.themoviedb.org/3/tv/{$tmdbId}/season/{$seasonNumber}/episode/{$episodeNumber}", [
+            'api_key' => $apiKey,
+            'language' => 'en-US',
+        ]);
+
+        if ($response->failed()) {
+            Notification::make()->title('Fetch Failed')->body('Episode not found.')->danger()->send();
+            return;
+        }
+
+        $data = $response->json();
+
+        Episode::create([
+            'season_id' => $this->season_id,
+            'episode_number' => $episodeNumber,
+            'title' => $data['name'] ?? "Episode {$episodeNumber}",
+            'slug' => Str::slug($this->record->title . '-s' . $seasonNumber . '-ep' . $episodeNumber),
+            'overview' => $data['overview'] ?? null,
+            'thumbnail_url' => !empty($data['still_path']) 
+                ? 'https://image.tmdb.org/t/p/original' . $data['still_path'] 
+                : null,
+            'duration' => $data['runtime'] ?? 0,
+            'air_date' => $data['air_date'] ?? null,
+            'video_url' => '#', 
+            'is_premium' => false,
+            'coin_price' => 0,
+            'xp_reward' => 10,
+        ]);
+
+        Notification::make()->title("Episode #{$episodeNumber} Added Successfully!")->success()->send();
+        $this->dispatch('refresh-table'); 
     }
 
     protected function getEpisodeFormSchema(): array
     {
         return [
             Grid::make(3)->schema([
-                // LEFT SIDE (Content Info)
+                // LEFT SIDE (Details & Media)
                 Forms\Components\Group::make()->schema([
                     Section::make('Episode Details')
                         ->schema([
@@ -80,13 +160,12 @@ class ManageAnimeEpisodes extends Page implements HasTable
                             Forms\Components\TextInput::make('title')
                                 ->required()
                                 ->live(onBlur: true)
-                                // Slug ကို Auto ဖြည့်ပေးမယ် (Anime Slug + Season + Ep)
                                 ->afterStateUpdated(function (Set $set, ?string $state, Get $get) {
                                     $slug = Str::slug($this->record->title . '-s' . $this->season->season_number . '-ep' . $get('episode_number') . '-' . $state);
                                     $set('slug', $slug);
                                 }),
 
-                            Forms\Components\Hidden::make('slug'), // Hidden Slug
+                            Forms\Components\Hidden::make('slug'),
 
                             Forms\Components\Textarea::make('overview')
                                 ->rows(3)
@@ -97,7 +176,7 @@ class ManageAnimeEpisodes extends Page implements HasTable
                                 ->displayFormat('d M Y'),
                         ]),
 
-                    Section::make('Media')
+                    Section::make('Media & Subtitles')
                         ->schema([
                             Forms\Components\TextInput::make('thumbnail_url')
                                 ->label('Thumbnail URL')
@@ -107,7 +186,41 @@ class ManageAnimeEpisodes extends Page implements HasTable
                             Forms\Components\Textarea::make('video_url')
                                 ->label('Video Source')
                                 ->placeholder('Direct URL or Iframe')
-                                ->rows(3),
+                                ->rows(2),
+
+                            // 🔥🔥🔥 SUBTITLE REPEATER ADDED HERE 🔥🔥🔥
+                            Repeater::make('subtitles')
+                                ->relationship() // Must relate to hasMany in Episode Model
+                                ->label('Subtitles / Captions')
+                                ->schema([
+                                    Grid::make(2)->schema([
+                                        Forms\Components\TextInput::make('language')
+                                            ->label('Language Label')
+                                            ->placeholder('Myanmar')
+                                            ->required(),
+                                            
+                                        Select::make('format')
+                                            ->options([
+                                                'vtt' => 'VTT (WebVTT)',
+                                                'srt' => 'SRT (SubRip)',
+                                                'ass' => 'ASS (Advanced SSA)',
+                                            ])
+                                            ->default('vtt')
+                                            ->required(),
+                                    ]),
+
+                                    Forms\Components\TextInput::make('url')
+                                        ->label('Subtitle File URL')
+                                        ->placeholder('https://example.com/subs/myanmar.vtt')
+                                        ->prefixIcon('heroicon-m-document-text')
+                                        ->url()
+                                        ->required(),
+                                ])
+                                ->itemLabel(fn (array $state): ?string => $state['language'] ?? null)
+                                ->collapsed(false)
+                                ->collapseAllAction(fn ($action) => $action->label('Collapse All'))
+                                ->deleteAction(fn ($action) => $action->requiresConfirmation())
+                                ->columns(1),
                         ]),
                 ])->columnSpan(2),
 
@@ -132,8 +245,7 @@ class ManageAnimeEpisodes extends Page implements HasTable
                             Forms\Components\TextInput::make('xp_reward')
                                 ->numeric()
                                 ->default(10)
-                                ->label('XP Reward')
-                                ->helperText('User gets this XP after watching.'),
+                                ->label('XP Reward'),
                         ]),
                 ])->columnSpan(1),
             ]),
@@ -165,7 +277,6 @@ class ManageAnimeEpisodes extends Page implements HasTable
                     ->limit(30)
                     ->description(fn (Episode $record) => Str::limit($record->overview, 40)),
 
-                // Table ထဲမှာတင် အဖွင့်အပိတ်လုပ်လို့ရမယ်
                 Tables\Columns\ToggleColumn::make('is_premium')
                     ->label('Premium')
                     ->onColor('success')
@@ -187,10 +298,9 @@ class ManageAnimeEpisodes extends Page implements HasTable
                 Tables\Actions\CreateAction::make()
                     ->label('New Episode')
                     ->icon('heroicon-o-plus')
-                    ->slideOver() // ညာဘက်ကနေ Slide ဝင်လာမယ်
+                    ->slideOver()
                     ->mutateFormDataUsing(function (array $data) {
                         $data['season_id'] = $this->season_id;
-                        // Slug မပါလာရင် Auto ဖြည့်မယ်
                         if (empty($data['slug'])) {
                             $data['slug'] = Str::slug($this->record->title . '-s' . $this->season->season_number . '-ep' . $data['episode_number']);
                         }
@@ -208,27 +318,15 @@ class ManageAnimeEpisodes extends Page implements HasTable
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
                     Tables\Actions\DeleteBulkAction::make(),
-
-                    // BULK SET PRICE
+                    
                     Tables\Actions\BulkAction::make('set_price')
                         ->label('Update Prices')
                         ->icon('heroicon-o-currency-dollar')
                         ->color('warning')
                         ->form([
-                            Forms\Components\Toggle::make('is_premium')
-                                ->label('Mark as Premium')
-                                ->default(true),
-
-                            Forms\Components\TextInput::make('coin_price')
-                                ->label('Coin Price')
-                                ->numeric()
-                                ->default(50)
-                                ->required(),
-                                
-                            Forms\Components\TextInput::make('xp_reward')
-                                ->label('XP Reward')
-                                ->numeric()
-                                ->default(10),
+                            Forms\Components\Toggle::make('is_premium')->label('Mark as Premium')->default(true),
+                            Forms\Components\TextInput::make('coin_price')->label('Coin Price')->numeric()->default(50)->required(),
+                            Forms\Components\TextInput::make('xp_reward')->label('XP Reward')->numeric()->default(10),
                         ])
                         ->action(function (Collection $records, array $data) {
                             $records->each->update([
@@ -236,9 +334,40 @@ class ManageAnimeEpisodes extends Page implements HasTable
                                 'coin_price' => $data['coin_price'],
                                 'xp_reward'  => $data['xp_reward'],
                             ]);
+                            Notification::make()->title('Updated Successfully')->success()->send();
+                        })
+                        ->deselectRecordsAfterCompletion(),
 
+                    Tables\Actions\BulkAction::make('replace_video_domain')
+                        ->label('Replace URL Domain')
+                        ->icon('heroicon-o-link')
+                        ->color('info')
+                        ->form([
+                            Forms\Components\TextInput::make('find_string')
+                                ->label('Find (Old Domain/Path)')
+                                ->placeholder('e.g. https://s3.us-east-005.backblazeb2.com/')
+                                ->required(),
+
+                            Forms\Components\TextInput::make('replace_string')
+                                ->label('Replace With (New Domain)')
+                                ->placeholder('e.g. https://stream.animegabar.com/')
+                                ->required(),
+                        ])
+                        ->action(function (Collection $records, array $data) {
+                            $count = 0;
+                            foreach ($records as $record) {
+                                if ($record->video_url && str_contains($record->video_url, $data['find_string'])) {
+                                    $newUrl = str_replace(
+                                        $data['find_string'], 
+                                        $data['replace_string'], 
+                                        $record->video_url
+                                    );
+                                    $record->update(['video_url' => $newUrl]);
+                                    $count++;
+                                }
+                            }
                             Notification::make()
-                                ->title('Episodes Updated Successfully')
+                                ->title("Updated {$count} episodes successfully!")
                                 ->success()
                                 ->send();
                         })

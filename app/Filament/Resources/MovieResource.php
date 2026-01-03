@@ -24,6 +24,7 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\DatePicker;
 use Filament\Support\Enums\FontWeight;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Database\Eloquent\Collection; // 🔥 Import Collection
 
 class MovieResource extends Resource
 {
@@ -143,7 +144,7 @@ class MovieResource extends Resource
                                     ])
                                     ->required(),
 
-                                // 🔥 Channel Select Box Added Here
+                                // 🔥 Channel Select Box
                                 Select::make('channel_id')
                                     ->relationship('channel', 'name')
                                     ->searchable()
@@ -302,6 +303,45 @@ class MovieResource extends Resource
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
                     Tables\Actions\DeleteBulkAction::make(),
+                    
+                    // 🔥🔥 BULK ACTION: Replace Video URL Domain 🔥🔥
+                    Tables\Actions\BulkAction::make('replace_video_domain')
+                        ->label('Replace URL Domain')
+                        ->icon('heroicon-o-link')
+                        ->color('info')
+                        ->form([
+                            Forms\Components\TextInput::make('find_string')
+                                ->label('Find (Old Domain/Path)')
+                                ->placeholder('e.g. https://s3.us-east-005.backblazeb2.com/')
+                                ->required(),
+
+                            Forms\Components\TextInput::make('replace_string')
+                                ->label('Replace With (New Domain)')
+                                ->placeholder('e.g. https://stream.animegabar.com/')
+                                ->required(),
+                        ])
+                        ->action(function (Collection $records, array $data) {
+                            $count = 0;
+                            foreach ($records as $record) {
+                                // Only process if video_url exists and contains the search string
+                                if ($record->video_url && str_contains($record->video_url, $data['find_string'])) {
+                                    $newUrl = str_replace(
+                                        $data['find_string'], 
+                                        $data['replace_string'], 
+                                        $record->video_url
+                                    );
+                                    
+                                    $record->update(['video_url' => $newUrl]);
+                                    $count++;
+                                }
+                            }
+
+                            Notification::make()
+                                ->title("Updated {$count} movies successfully!")
+                                ->success()
+                                ->send();
+                        })
+                        ->deselectRecordsAfterCompletion(),
                 ]),
             ]);
     }
