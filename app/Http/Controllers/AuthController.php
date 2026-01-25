@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rule;
 
 class AuthController extends Controller
 {
@@ -17,7 +18,6 @@ class AuthController extends Controller
             'name' => 'required|string|max:255',
             'phone' => 'required|numeric|unique:users,phone',
             'password' => 'required|string|min:6',
-            // device_id is optional on register, but good to have if you auto-login
             'device_id' => 'nullable|string', 
         ]);
 
@@ -26,9 +26,9 @@ class AuthController extends Controller
             'phone' => $request->phone,
             'password' => Hash::make($request->password),
             'rank' => 'Newbie',
-            'coins' => 100,
+            'coins' => 0,
             'xp' => 0,
-            'device_id' => $request->device_id, // Save device ID immediately
+            'device_id' => $request->device_id,
         ]);
 
         $token = $user->createToken('mobile-app')->plainTextToken;
@@ -42,14 +42,14 @@ class AuthController extends Controller
     }
 
     // ==========================================
-    // 2. LOGIN (Single Device Logic Here)
+    // 2. LOGIN (Single Device Logic)
     // ==========================================
     public function login(Request $request)
     {
         $request->validate([
             'phone' => 'required|numeric',
             'password' => 'required',
-            'device_id' => 'required|string', // 🔥 Flutter ကနေ မဖြစ်မနေ ပို့ရမယ်
+            'device_id' => 'required|string', 
         ]);
         
         $user = User::where('phone', $request->phone)->first();
@@ -62,17 +62,16 @@ class AuthController extends Controller
             ], 401);
         }
 
-        // 2. 🔥 Check Device ID (Single Device Enforcement)
-        // အကယ်၍ DB မှာ device_id ရှိပြီး၊ ပို့လိုက်တဲ့ ID နဲ့ မတူရင် Error ပြန်မယ်
+        // 2. Check Device ID (Single Device Enforcement)
         if ($user->device_id && $user->device_id !== $request->device_id) {
             return response()->json([
                 'success' => false,
-                'code' => 'DEVICE_MISMATCH', // Flutter ဘက်မှာ ဒီ code ကိုစစ်ပြီး Dialog ပြမယ်
-                'message' => 'ဤအကောင့်သည် အခြားဖုန်းတွင် Login ဝင်ထားပြီးဖြစ်သည်။ ကျေးဇူးပြု၍ ယခင်ဖုန်းမှ Logout လုပ်ပါ သို့မဟုတ် Admin သို့ဆက်သွယ်ပါ။'
+                'code' => 'DEVICE_MISMATCH',
+                'message' => 'ဤအကောင့်သည် အခြားဖုန်းတွင် Login ဝင်ထားပြီးဖြစ်သည်။'
             ], 403);
         }
 
-        // 3. Update Device ID (If null or same device)
+        // 3. Update Device ID
         $user->update(['device_id' => $request->device_id]);
         
         // 4. Create Token
@@ -87,17 +86,48 @@ class AuthController extends Controller
     }
 
     // ==========================================
-    // 3. LOGOUT
+    // 3. UPDATE PROFILE (NEW 🔥)
+    // ==========================================
+    public function updateProfile(Request $request)
+    {
+        $user = $request->user(); // Get Authenticated User
+
+        $request->validate([
+            'name' => 'required|string|max:255',
+            // ဖုန်းနံပါတ်က Unique ဖြစ်ရမယ်၊ ဒါပေမယ့် ကိုယ့် ID ဆိုရင် ခွင့်ပြုမယ်
+            'phone' => 'required|numeric|unique:users,phone,' . $user->id,
+            'password' => 'nullable|string|min:6', // Optional
+        ]);
+
+        // Basic Info Update
+        $user->name = $request->name;
+        $user->phone = $request->phone;
+
+        // Password ပါလာမှသာ ပြောင်းမယ်
+        if ($request->filled('password')) {
+            $user->password = Hash::make($request->password);
+        }
+
+        $user->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Profile updated successfully',
+            'user' => $user
+        ], 200);
+    }
+
+    // ==========================================
+    // 4. LOGOUT
     // ==========================================
     public function logout(Request $request)
     {
         $user = $request->user();
 
         if ($user) {
-            // 🔥 Clear Device ID so they can login on another phone later
+            // Clear Device ID
             $user->update(['device_id' => null]);
-
-            // Revoke current token
+            // Revoke Token
             $user->currentAccessToken()->delete();
         }
 

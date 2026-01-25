@@ -22,6 +22,7 @@ use App\Http\Controllers\Api\RedeemController;
 use App\Http\Controllers\Api\ThemeController;
 use App\Http\Controllers\Api\ViewCountController;
 use App\Http\Controllers\Api\ChannelController;
+use App\Http\Controllers\Api\DailyRewardController;
 
 /*
 |--------------------------------------------------------------------------
@@ -42,7 +43,7 @@ Route::get('/theme-settings', [ThemeController::class, 'getActiveTheme']);
 
 // 2. Authentication
 Route::post('/register', [AuthController::class, 'register']);
-Route::post('/login', [AuthController::class, 'login']); // 🔥 Single Device Logic is inside Controller
+Route::post('/login', [AuthController::class, 'login']); // 🔥 Device ID Logic included
 
 // 3. Search (Public Search)
 Route::get('/search', [UtilityController::class, 'search']);
@@ -52,19 +53,20 @@ Route::get('/comics', [ComicController::class, 'index']);
 Route::get('/comics/{slug}', [ComicController::class, 'show']);
 
 // 5. Movies
-Route::get('/movies', [MovieController::class, 'index']); // All Movies
-Route::get('/movies/search', [MovieController::class, 'search']); // Search
-Route::get('/movies/{slug}', [MovieController::class, 'show']); // Detail
+Route::get('/movies', [MovieController::class, 'index']);
+Route::get('/movies/search', [MovieController::class, 'search']);
+Route::get('/movies/{slug}', [MovieController::class, 'show']);
 
 // 6. Anime
-Route::get('/home/latest', [AnimeController::class, 'getLatestAnimes']); // Home Screen
-Route::get('/home/ongoing', [AnimeController::class, 'getOngoingAnimes']); // Ongoing
-Route::get('/anime/all', [AnimeController::class, 'getAllAnimes']); // All Anime Screen
-Route::get('/anime/search', [AnimeController::class, 'search']); // Search
-Route::get('/anime/{slug}', [AnimeController::class, 'showBySlug']); // Detail Screen
-Route::post('/view-count/increment', [ViewCountController::class, 'increment']);
+Route::get('/home/latest', [AnimeController::class, 'getLatestAnimes']);
+Route::get('/home/ongoing', [AnimeController::class, 'getOngoingAnimes']);
 Route::get('/home/top-viewed', [AnimeController::class, 'getTopViewedAnimes']);
+Route::get('/anime/all', [AnimeController::class, 'getAllAnimes']);
+Route::get('/anime/search', [AnimeController::class, 'search']);
+Route::get('/anime/{slug}', [AnimeController::class, 'showBySlug']);
+Route::post('/view-count/increment', [ViewCountController::class, 'increment']);
 
+// 7. Channels
 Route::get('/channels', [ChannelController::class, 'index']);
 Route::get('/channels/{id}', [ChannelController::class, 'show']);
 
@@ -75,10 +77,17 @@ Route::get('/channels/{id}', [ChannelController::class, 'show']);
 Route::middleware('auth:sanctum')->group(function () {
 
     // --- 1. Auth & Profile ---
-    Route::post('/logout', [AuthController::class, 'logout']); // 🔥 Resets Device ID inside Controller
-    Route::get('/user', [UserController::class, 'getProfile']);
-    Route::post('/user/update', [UserController::class, 'updateProfile']);
+    Route::post('/logout', [AuthController::class, 'logout']);
+    Route::get('/user', [UserController::class, 'getProfile']); // (Optional) AuthController သုံးလည်းရသည်
+    
+    // 🔥 Profile Update (AuthController သို့ ပြောင်းထားသည်)
+    Route::post('/user/update', [AuthController::class, 'updateProfile']); 
+    
     Route::get('/user/library', [UserController::class, 'getLibrary']);
+    
+    // --- Daily Reward ---
+    Route::get('/daily-reward/status', [DailyRewardController::class, 'status']);
+    Route::post('/daily-reward/claim', [DailyRewardController::class, 'claim']);
     
     // --- 2. Transactions & Wallet ---
     Route::get('/user/topup-history', [UserController::class, 'getTopupHistory']);
@@ -122,5 +131,14 @@ Route::middleware('auth:sanctum')->group(function () {
     // --- 9. Redeem ---
     Route::post('/redeem-coupon', [RedeemController::class, 'redeem']);
     Route::get('/redeem-history', [RedeemController::class, 'getHistory']);
+
+    Route::get('/home-sections', function () {
+    return \App\Models\Section::with(['animes' => function($query) {
+        $query->limit(10); // Section တစ်ခုမှာ ၁၀ ကားပဲယူမယ် (Performance အတွက်)
+    }])
+    ->where('is_active', true)
+    ->orderBy('sort_order', 'asc')
+    ->get();
+});
 
 });

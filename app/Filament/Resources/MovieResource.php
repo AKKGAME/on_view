@@ -304,6 +304,37 @@ class MovieResource extends Resource
                 Tables\Actions\BulkActionGroup::make([
                     Tables\Actions\DeleteBulkAction::make(),
                     
+                    // 🔥🔥 BULK ACTION: Update Coin Price & Premium Status 🔥🔥
+                    Tables\Actions\BulkAction::make('set_price')
+                        ->label('Update Prices')
+                        ->icon('heroicon-o-currency-dollar')
+                        ->color('warning')
+                        ->form([
+                            Forms\Components\Toggle::make('is_premium')
+                                ->label('Mark as Premium')
+                                ->default(true),
+                            
+                            Forms\Components\TextInput::make('coin_price')
+                                ->label('Coin Price')
+                                ->numeric()
+                                ->default(50)
+                                ->required(),
+                            
+                            Forms\Components\TextInput::make('xp_reward')
+                                ->label('XP Reward')
+                                ->numeric()
+                                ->default(10),
+                        ])
+                        ->action(function (Collection $records, array $data) {
+                            $records->each->update([
+                                'is_premium' => $data['is_premium'],
+                                'coin_price' => $data['coin_price'],
+                                'xp_reward'  => $data['xp_reward'],
+                            ]);
+                            Notification::make()->title('Updated Successfully')->success()->send();
+                        })
+                        ->deselectRecordsAfterCompletion(),
+
                     // 🔥🔥 BULK ACTION: Replace Video URL Domain 🔥🔥
                     Tables\Actions\BulkAction::make('replace_video_domain')
                         ->label('Replace URL Domain')

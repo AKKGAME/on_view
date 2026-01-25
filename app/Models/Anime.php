@@ -50,4 +50,11 @@ class Anime extends Model
     {
         return $this->belongsTo(Channel::class);
     }
+
+    public function sections(): BelongsToMany
+    {
+        return $this->belongsToMany(Section::class, 'anime_section')
+                    ->withPivot('sort_order') // Pivot table မှာ field ပိုပါရင် ထည့်ပါ
+                    ->withTimestamps();
+    }
 }
