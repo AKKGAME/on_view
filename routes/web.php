@@ -1,18 +1,6 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use App\Livewire\Home;
-use App\Livewire\ShowAnime;
-use App\Livewire\WatchEpisode;
-use App\Livewire\Explore;
-use App\Livewire\Topup;
-use App\Livewire\Profile;
-use App\Livewire\RequestAnime;
-use App\Livewire\Auth\Login;
-use App\Livewire\Auth\Register;
-use App\Livewire\Leaderboard;
-use App\Livewire\Oracle;
-use App\Http\Controllers\StreamController;
 
 /*
 |--------------------------------------------------------------------------
@@ -20,24 +8,15 @@ use App\Http\Controllers\StreamController;
 |--------------------------------------------------------------------------
 */
 
-Route::get('/', Home::class)->name('home');
-Route::get('/explore', Explore::class)->name('explore');
-Route::get('/anime/{slug}', ShowAnime::class)->name('anime.show');
-Route::get('/watch/{episode}', WatchEpisode::class)->name('anime.watch');
-Route::get('/leaderboard', Leaderboard::class)->name('leaderboard');
-
-Route::get('/stream/{id}', [StreamController::class, 'play'])
-    ->middleware('auth') // Middleware နဲ့ ကာတာ ပိုကောင်းပါတယ်
-    ->name('stream.play');
-
-Route::middleware('guest')->group(function () {
-    Route::get('/login', Login::class)->name('login');
-    Route::get('/register', Register::class)->name('register');
+// Website ပင်မစာမျက်နှာကို လာရင် ဘာမှမပြဘဲ 404 (Not Found) ပဲ ပြလိုက်မယ်
+// ဒါမှမဟုတ် "API Server is running" လို့ပဲ စာတိုလေးပြလိုက်ပါ
+Route::get('/', function () {
+    return abort(404); 
+    // သို့မဟုတ်
+    // return "System is running...";
 });
 
-Route::middleware('auth')->group(function () {
-    Route::get('/profile', Profile::class)->name('profile');
-    Route::get('/topup', Topup::class)->name('topup');
-    Route::get('/request', RequestAnime::class)->name('request');
-    Route::get('/oracle', Oracle::class)->name('oracle');
-});
+// Login route ကို လာရှာရင်လည်း 404 ပဲ ပြမယ် (Admin က သူ့ URL သူသိပြီးသားမို့လို့ပါ)
+Route::get('/login', function () {
+    return abort(404);
+})->name('login');

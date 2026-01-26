@@ -15,7 +15,8 @@ class AuthController extends Controller
     public function register(Request $request)
     {
         $request->validate([
-            'name' => 'required|string|max:255',
+            // 🔥 Name Validation: Only letters, numbers, and spaces allowed (No Scripts)
+            'name' => ['required', 'string', 'max:255', 'regex:/^[a-zA-Z0-9\s]+$/'],
             'phone' => 'required|numeric|unique:users,phone',
             'password' => 'required|string|min:6',
             'device_id' => 'nullable|string', 
@@ -86,15 +87,15 @@ class AuthController extends Controller
     }
 
     // ==========================================
-    // 3. UPDATE PROFILE (NEW 🔥)
+    // 3. UPDATE PROFILE
     // ==========================================
     public function updateProfile(Request $request)
     {
         $user = $request->user(); // Get Authenticated User
 
         $request->validate([
-            'name' => 'required|string|max:255',
-            // ဖုန်းနံပါတ်က Unique ဖြစ်ရမယ်၊ ဒါပေမယ့် ကိုယ့် ID ဆိုရင် ခွင့်ပြုမယ်
+            // 🔥 Update Validation: Only letters, numbers, and spaces allowed
+            'name' => ['required', 'string', 'max:255', 'regex:/^[a-zA-Z0-9\s]+$/'],
             'phone' => 'required|numeric|unique:users,phone,' . $user->id,
             'password' => 'nullable|string|min:6', // Optional
         ]);

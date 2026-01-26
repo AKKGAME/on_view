@@ -24,65 +24,88 @@ use App\Http\Controllers\Api\ViewCountController;
 use App\Http\Controllers\Api\ChannelController;
 use App\Http\Controllers\Api\DailyRewardController;
 
+// Models
+use App\Models\Section;
+
 /*
 |--------------------------------------------------------------------------
-| API Routes
+| API Routes (Secured)
 |--------------------------------------------------------------------------
 */
 
-// ==========================================
-// 🌍 PUBLIC ROUTES (Login မဝင်ဘဲ သုံးလို့ရသည်)
-// ==========================================
+// =========================================================================
+// 🌍 PUBLIC ROUTES (Login မလိုသော်လည်း API Key နှင့် Rate Limit လိုသည်)
+// =========================================================================
 
-// 1. System & Utility
-Route::get('/app-version', [AppVersionController::class, 'checkVersion']);
-Route::get('/genres', [UtilityController::class, 'getGenres']);
-Route::get('/payment-methods', [UtilityController::class, 'getPaymentMethods']);
-Route::get('/banners', [BannerController::class, 'index']);
-Route::get('/theme-settings', [ThemeController::class, 'getActiveTheme']);
+Route::middleware(['api.key', 'throttle:60,1'])->group(function () {
 
-// 2. Authentication
-Route::post('/register', [AuthController::class, 'register']);
-Route::post('/login', [AuthController::class, 'login']); // 🔥 Device ID Logic included
+    // --- 1. System & Utility ---
+    Route::get('/app-version', [AppVersionController::class, 'checkVersion']);
+    Route::get('/genres', [UtilityController::class, 'getGenres']);
+    Route::get('/payment-methods', [UtilityController::class, 'getPaymentMethods']);
+    Route::get('/banners', [BannerController::class, 'index']);
+    Route::get('/theme-settings', [ThemeController::class, 'getActiveTheme']);
 
-// 3. Search (Public Search)
-Route::get('/search', [UtilityController::class, 'search']);
+    // --- 2. Authentication (Strict Rate Limiting) ---
+    // Login/Register ကို တစ်မိနစ်လျှင် ၁၀ ကြိမ်သာ ခွင့်ပြုမည် (Brute Force ကာကွယ်ရန်)
+    Route::middleware('throttle:10,1')->group(function () {
+        Route::post('/register', [AuthController::class, 'register']);
+        Route::post('/login', [AuthController::class, 'login']);
+    });
 
-// 4. Comics (Public View)
-Route::get('/comics', [ComicController::class, 'index']);
-Route::get('/comics/{slug}', [ComicController::class, 'show']);
+    // --- 3. Search ---
+    Route::get('/search', [UtilityController::class, 'search']);
 
-// 5. Movies
-Route::get('/movies', [MovieController::class, 'index']);
-Route::get('/movies/search', [MovieController::class, 'search']);
-Route::get('/movies/{slug}', [MovieController::class, 'show']);
+    // --- 4. Comics ---
+    Route::get('/comics', [ComicController::class, 'index']);
+    Route::get('/comics/{slug}', [ComicController::class, 'show']);
 
-// 6. Anime
-Route::get('/home/latest', [AnimeController::class, 'getLatestAnimes']);
-Route::get('/home/ongoing', [AnimeController::class, 'getOngoingAnimes']);
-Route::get('/home/top-viewed', [AnimeController::class, 'getTopViewedAnimes']);
-Route::get('/anime/all', [AnimeController::class, 'getAllAnimes']);
-Route::get('/anime/search', [AnimeController::class, 'search']);
-Route::get('/anime/{slug}', [AnimeController::class, 'showBySlug']);
-Route::post('/view-count/increment', [ViewCountController::class, 'increment']);
+    // --- 5. Movies ---
+    Route::get('/movies', [MovieController::class, 'index']);
+    Route::get('/movies/search', [MovieController::class, 'search']);
+    Route::get('/movies/{slug}', [MovieController::class, 'show']);
 
-// 7. Channels
-Route::get('/channels', [ChannelController::class, 'index']);
-Route::get('/channels/{id}', [ChannelController::class, 'show']);
+    // --- 6. Anime ---
+    Route::get('/home/latest', [AnimeController::class, 'getLatestAnimes']);
+    Route::get('/home/ongoing', [AnimeController::class, 'getOngoingAnimes']);
+    Route::get('/home/top-viewed', [AnimeController::class, 'getTopViewedAnimes']);
+    Route::get('/anime/all', [AnimeController::class, 'getAllAnimes']);
+    Route::get('/anime/search', [AnimeController::class, 'search']);
+    Route::get('/anime/{slug}', [AnimeController::class, 'showBySlug']);
+    Route::post('/view-count/increment', [ViewCountController::class, 'increment']);
+
+    // --- 7. Channels ---
+    Route::get('/channels', [ChannelController::class, 'index']);
+    Route::get('/channels/{id}', [ChannelController::class, 'show']);
+
+    // --- 8. Home Dynamic Sections ---
+    Route::get('/home-sections', function () {
+        return Section::with(['animes' => function($query) {
+            $query->limit(12); // Limit for performance
+        }])
+        ->where('is_active', true)
+        ->orderBy('sort_order', 'asc')
+        ->get();
+    });
+
+    Route::get('/home-sections/{section}', function (Section $section) {
+        return $section->animes()
+            ->orderByPivot('sort_order', 'asc')
+            ->paginate(18);
+    });
+});
 
 
-// ==========================================
-// 🔐 AUTHENTICATED ROUTES (Login ဝင်မှရမည်)
-// ==========================================
-Route::middleware('auth:sanctum')->group(function () {
+// =========================================================================
+// 🔐 AUTHENTICATED ROUTES (Login ဝင်ထားသူများသာ)
+// =========================================================================
+
+Route::middleware(['auth:sanctum', 'api.key', 'throttle:60,1'])->group(function () {
 
     // --- 1. Auth & Profile ---
     Route::post('/logout', [AuthController::class, 'logout']);
-    Route::get('/user', [UserController::class, 'getProfile']); // (Optional) AuthController သုံးလည်းရသည်
-    
-    // 🔥 Profile Update (AuthController သို့ ပြောင်းထားသည်)
-    Route::post('/user/update', [AuthController::class, 'updateProfile']); 
-    
+    Route::get('/user', [UserController::class, 'getProfile']);
+    Route::post('/user/update', [AuthController::class, 'updateProfile']);
     Route::get('/user/library', [UserController::class, 'getLibrary']);
     
     // --- Daily Reward ---
@@ -131,14 +154,5 @@ Route::middleware('auth:sanctum')->group(function () {
     // --- 9. Redeem ---
     Route::post('/redeem-coupon', [RedeemController::class, 'redeem']);
     Route::get('/redeem-history', [RedeemController::class, 'getHistory']);
-
-    Route::get('/home-sections', function () {
-    return \App\Models\Section::with(['animes' => function($query) {
-        $query->limit(10); // Section တစ်ခုမှာ ၁၀ ကားပဲယူမယ် (Performance အတွက်)
-    }])
-    ->where('is_active', true)
-    ->orderBy('sort_order', 'asc')
-    ->get();
-});
 
 });

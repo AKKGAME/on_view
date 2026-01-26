@@ -15,7 +15,7 @@ class ComicController extends Controller
     {
         $comics = Comic::latest()
             ->select('id', 'title', 'slug', 'cover_image', 'is_finished', 'author')
-            ->paginate(20);
+            ->paginate(10);
 
         return response()->json($comics);
     }

@@ -17,9 +17,9 @@ use Filament\Panel;
 // ✅ CORRECTED IMPORT (Auth ဖြုတ်လိုက်ပါပြီ)
 use Filament\Notifications\Auth\Concerns\HasDatabaseNotifications;
 
-use Spatie\Permission\Traits\HasRoles; 
+use Spatie\Permission\Traits\HasRoles;
 
-class User extends Authenticatable implements FilamentUser 
+class User extends Authenticatable implements FilamentUser
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
     
@@ -27,7 +27,7 @@ class User extends Authenticatable implements FilamentUser
     use HasApiTokens, HasFactory, Notifiable;
     
     // use HasDatabaseNotifications; // ✅ အခုမှန်သွားပါပြီ
-    use HasRoles; 
+    use HasRoles;
 
     /**
      * The attributes that are mass assignable.
@@ -82,6 +82,12 @@ class User extends Authenticatable implements FilamentUser
         return $this->premium_expires_at && $this->premium_expires_at->isFuture();
     }
 
+    // --- MUTATORS (Sanitization) ---
+    public function setNameAttribute($value)
+    {
+        $this->attributes['name'] = strip_tags($value);
+    }
+
     // --- EVENTS ---
     protected static function booted()
     {
@@ -126,8 +132,8 @@ class User extends Authenticatable implements FilamentUser
     }
 
     public function redeemedCoupons()
-{
-    return $this->belongsToMany(CoinCoupon::class, 'coin_coupon_user')
-                ->withPivot('redeemed_at');
-}
+    {
+        return $this->belongsToMany(CoinCoupon::class, 'coin_coupon_user')
+                    ->withPivot('redeemed_at');
+    }
 }
