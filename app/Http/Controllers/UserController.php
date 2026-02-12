@@ -27,20 +27,53 @@ class UserController extends Controller
     {
         $user = $request->user();
         
-        // ဝယ်ယူထားသည့် episode IDs များကို ထုတ်ယူခြင်း
-        $purchasedEpisodeIds = Transaction::where('user_id', $user->id)
-            ->where('type', 'purchase')
-            // 'ep_123' ပုံစံမျိုးကို စစ်ဆေးခြင်း
-            ->where('description', 'like', 'ep\_%') 
-            ->pluck('description')
-            ->map(fn ($desc) => str_replace('ep_', '', $desc))
-            ->unique()
-            ->toArray();
+        // 1. Transaction များကို အရင်ဆွဲထုတ်မည် (SQL Filtering အစား PHP Collection ဖြင့်စစ်မည်)
+        $transactions = Transaction::where('user_id', $user->id)
+            ->where('type', 'purchase') // Type ကို သေချာစစ်ပါ (Database မှာ 'purchase' ဟုတ်မဟုတ်)
+            ->get();
 
+        // 2. ID များကို သန့်စင်ပြီး ယူမည်
+        $purchasedEpisodeIds = $transactions->map(function ($transaction) {
+            
+            // A. အကယ်၍ episode_id column ရှိရင် အရင်ယူမယ် (အကောင်းဆုံး)
+            if (!empty($transaction->episode_id)) {
+                return (int) $transaction->episode_id;
+            }
+
+            // B. Description ကနေ "ep_123" ကိုဖြတ်ယူမယ်
+            $desc = $transaction->description; 
+            // "ep_" နဲ့စရင် ဖြတ်ယူမယ်
+            if (str_starts_with($desc, 'ep_')) {
+                return (int) str_replace('ep_', '', $desc);
+            }
+
+            return null; // ID မဟုတ်ရင် ကျော်မယ်
+        })
+        ->filter() // null များကို ဖယ်မည်
+        ->unique()
+        ->values()
+        ->toArray();
+
+        // Debug လုပ်ချင်ရင် ဒီလိုင်းကိုဖွင့်ပြီး ID တွေထွက်လာလား စစ်ကြည့်ပါ
+        // return response()->json(['debug_ids' => $purchasedEpisodeIds]);
+
+        // ID မရှိရင် Empty array ပြန်ပို့မည်
+        if (empty($purchasedEpisodeIds)) {
+            return response()->json(['data' => []]);
+        }
+
+        // 3. Anime နှင့် Episode များကို Relationship ဖြင့် ဆွဲထုတ်မည်
         $libraryAnimes = Anime::whereHas('seasons.episodes', function ($query) use ($purchasedEpisodeIds) {
             $query->whereIn('id', $purchasedEpisodeIds);
         })
         ->with([
+            // Season ကိုပါ Filter လုပ်ပေးခြင်း (Performance ပိုကောင်းစေသည်)
+            'seasons' => function ($query) use ($purchasedEpisodeIds) {
+                $query->whereHas('episodes', function ($q) use ($purchasedEpisodeIds) {
+                    $q->whereIn('id', $purchasedEpisodeIds);
+                });
+            },
+            // Episode များကို Filter လုပ်ခြင်း (အရေးကြီးဆုံးအပိုင်း)
             'seasons.episodes' => function ($query) use ($purchasedEpisodeIds) {
                 $query->whereIn('id', $purchasedEpisodeIds);
             }
@@ -48,7 +81,8 @@ class UserController extends Controller
         ->distinct()
         ->get();
 
-        return response()->json($libraryAnimes);
+        // Flutter ဘက်က format အတိုင်း return ပြန်မည်
+        return response()->json(['data' => $libraryAnimes]);
     }
 
     // GET /user/topup-history
@@ -63,7 +97,6 @@ class UserController extends Controller
     // GET /user/transactions
     public function getTransactions(Request $request)
     {
-        // User ရဲ့ Transaction အားလုံး (အသစ်ဆုံး အရင်လာမည်)
         return \App\Models\Transaction::where('user_id', $request->user()->id)
             ->latest()
             ->get();
